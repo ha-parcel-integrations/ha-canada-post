@@ -1,0 +1,145 @@
+{
+  "title": "Canada Post",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Canada Post instellen",
+        "menu_options": {
+          "account": "Account (automatisch importeren)",
+          "tracking": "Trackingcodes"
+        }
+      },
+      "account": {
+        "title": "Canada Post-account instellen",
+        "description": "Meld eenmalig aan om de pakketten uit je Canada Post-account te importeren. Je wachtwoord wordt nooit opgeslagen.",
+        "data": {
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Canada Post-aanmelding verlopen",
+        "description": "Canada Post accepteert de opgeslagen aanmelding voor {username} niet meer. Voer het wachtwoord van dat account opnieuw in.",
+        "data": {
+          "password": "Wachtwoord"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Deze Canada Post-bron is al ingesteld.",
+      "reauth_successful": "Canada Post is opnieuw aangemeld.",
+      "unique_id_mismatch": "Die aanmelding hoort bij een ander Canada Post-account. Meld je aan met het account waarvoor dit item is ingesteld.",
+      "two_step_not_supported": "Dit account gebruikt verificatie in twee stappen, en dat wordt niet ondersteund. Schakel het uit voor dit account, of gebruik trackingcodes."
+    },
+    "error": {
+      "invalid_auth": "Aanmelden met deze gegevens is niet gelukt.",
+      "cannot_connect": "Kan geen verbinding maken met Canada Post."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Canada Post-opties",
+        "menu_options": {
+          "parcels": "Pakketten",
+          "settings": "Instellingen"
+        }
+      },
+      "parcels": {
+        "title": "Pakketten",
+        "data": {
+          "tracking_codes": "Trackingcodes"
+        },
+        "data_description": {
+          "tracking_codes": "Canada Post-PIN's, internationale trackingnummers, of het nummer op een niet-thuiskaartje (dat wordt omgezet naar de PIN van het pakket)."
+        }
+      },
+      "settings": {
+        "title": "Instellingen",
+        "data": {
+          "delivered_filter_type": "Bezorgde pakketten: filteren op",
+          "delivered_filter_amount": "Bezorgde pakketten: aantal",
+          "include_history": "Statusgeschiedenis toevoegen"
+        }
+      }
+    },
+    "error": {
+      "invalid_tracking_code": "Dat is geen Canada Post-PIN, internationaal trackingnummer of nummer van een niet-thuiskaartje.",
+      "not_found": "Canada Post heeft geen pakket bij dat nummer van het niet-thuiskaartje.",
+      "cannot_connect": "Kan geen verbinding maken met Canada Post."
+    }
+  },
+  "selector": {
+    "delivered_filter_type": {
+      "options": {
+        "days": "Dagen",
+        "parcels": "Aantal pakketten"
+      }
+    }
+  },
+  "services": {
+    "track_parcel": {
+      "name": "Pakket volgen",
+      "description": "Begin met het volgen van een pakket via de Canada Post-trackingcode.",
+      "fields": {
+        "tracking_code": {
+          "name": "Trackingcode",
+          "description": "De Canada Post-PIN, het internationale trackingnummer of het nummer van het niet-thuiskaartje."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Pakket niet meer volgen",
+      "description": "Stop met het volgen van een pakket via de Canada Post-trackingcode.",
+      "fields": {
+        "tracking_code": {
+          "name": "Trackingcode",
+          "description": "De Canada Post-trackingcode om niet meer te volgen."
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "parcel_registered": "Een pakket is geregistreerd",
+      "parcel_status_changed": "De status van een pakket is gewijzigd",
+      "parcel_delivered": "Een pakket is bezorgd",
+      "parcel_delivery_time_changed": "De verwachte bezorgtijd van een pakket is gewijzigd"
+    }
+  },
+  "entity": {
+    "button": {
+      "refresh": {
+        "name": "Verversen"
+      }
+    },
+    "calendar": {
+      "deliveries": {
+        "name": "Bezorgingen"
+      }
+    },
+    "sensor": {
+      "incoming_parcels": {
+        "name": "Inkomende pakketten",
+        "unit_of_measurement": "pakketten"
+      },
+      "next_delivery": {
+        "name": "Volgende bezorging"
+      },
+      "awaiting_pickup": {
+        "name": "Klaar voor afhalen",
+        "unit_of_measurement": "pakketten"
+      },
+      "delivered_parcels": {
+        "name": "Bezorgde pakketten",
+        "unit_of_measurement": "pakketten"
+      },
+      "last_update": {
+        "name": "Laatste succesvolle update"
+      },
+      "parcel": {
+        "name": "Pakket {barcode}"
+      }
+    }
+  }
+}
