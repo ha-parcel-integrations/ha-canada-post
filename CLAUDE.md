@@ -56,10 +56,13 @@ This repo follows it, with the two-source layout of `ha-bpost`.
 **Confirmed on real data; the WARNING net stays for what is still unseen.**
 The tracking payload is confirmed on real parcels (in transit, returned,
 customs-refused, waiting at a pickup point) and the account source on a real
-login. Still unseen, each logging a one-shot WARNING when it first appears: an
-expected-delivery window, an event time or zone-offset format the parser does
-not understand, an unknown status or event type that history cannot resolve,
-and an unexpected token or list-item shape.
+login, including token renewal, which returns a fresh `id_token`; the token
+response therefore logs nothing. Still unseen, each logging a one-shot WARNING
+when it first appears (the first three link to their help-wanted issue): an
+expected-delivery window, a parcel waiting at a pickup point as its current
+status, the return event codes whose wording is unknown, an event time or
+zone-offset format the parser does not understand, an unknown status or event
+type that history cannot resolve, and an unexpected list-item shape.
 
 **Two sources in one domain — `tracking/` and `account/` packages.**
 `entry.data[CONF_SOURCE]` (`tracking` / `account`) is read at every dispatch

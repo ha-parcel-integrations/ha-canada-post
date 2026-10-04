@@ -120,12 +120,13 @@ async def test_network_errors_are_wrapped_without_the_host():
         await _client(session).async_list_items()
 
 
-async def test_one_shot_shape_warning_logs_keys_only(caplog):
+async def test_confirmed_token_responses_log_nothing(caplog):
     with caplog.at_level(logging.WARNING):
-        await CanadaPostAccountClient(FakeSession((200, LOGIN_OK), (200, LOGIN_OK))).async_login("me", "pw")
-        await CanadaPostAccountClient(FakeSession((200, LOGIN_OK))).async_login("me", "pw")
-    assert caplog.text.count("sign-in response received") == 1
-    assert "i1" not in caplog.text and "a1" not in caplog.text
+        client = CanadaPostAccountClient(FakeSession((200, LOGIN_OK), (200, LOGIN_OK)))
+        await client.async_login("me", "pw")
+        client._refresh_token = "r0"
+        await client.async_refresh()
+    assert caplog.text == ""
 
 
 async def test_refresh_rotates_and_notifies_callback():

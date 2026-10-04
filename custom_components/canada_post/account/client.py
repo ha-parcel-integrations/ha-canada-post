@@ -121,17 +121,8 @@ class CanadaPostAccountClient:
         except (aiohttp.ClientError, TimeoutError):
             raise CanadaPostAccountApiError("sign-in service unreachable") from None
 
-    def _adopt(self, payload: dict[str, Any], *, refreshed: bool) -> None:
+    def _adopt(self, payload: dict[str, Any]) -> None:
         """Store a token response; absent optional fields keep their old value."""
-        _warn_once(
-            "refresh_shape" if refreshed else "login_shape",
-            "Canada Post %s response received — help us confirm the token "
-            "shape. Open an issue and paste this line: %s\n  keys=%s expires_in=%s",
-            "token refresh" if refreshed else "sign-in",
-            NEW_ISSUE_URL,
-            sorted(payload),
-            payload.get("expires_in"),
-        )
         self._access_token = payload["access_token"]
         self._id_token = payload["id_token"]
         self._refresh_token = payload.get("refresh_token") or self._refresh_token
@@ -146,7 +137,7 @@ class CanadaPostAccountClient:
             {"grant_type": "password", "username": username, "password": password}
         )
         if isinstance(body, dict) and body.get("access_token") and body.get("id_token"):
-            self._adopt(body, refreshed=False)
+            self._adopt(body)
             return self._tokens()
         if _looks_like_second_factor(body):
             raise CanadaPostAccountTwoStepRequired("second factor required")
@@ -169,7 +160,7 @@ class CanadaPostAccountClient:
             raise CanadaPostAccountReauthRequired("refresh rejected", status_code=status)
         if not body.get("access_token") or not body.get("id_token"):
             raise CanadaPostAccountReauthRequired("refresh returned no tokens")
-        self._adopt(body, refreshed=True)
+        self._adopt(body)
         if self._token_callback:
             await self._token_callback(self._tokens())
         return self._tokens()
