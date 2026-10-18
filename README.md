@@ -46,7 +46,7 @@ Part of the [ha-parcel-integrations](https://ha-parcel-integrations.github.io/) 
 
 ## Requirements
 
-- Home Assistant 2024.12 or newer
+- Home Assistant 2025.12 or newer
 - **Tracking codes:** a Canada Post PIN (11, 12 or 16 digits), an international tracking number (such as `RN123456789CA`) or the number on a delivery notice card. No account needed.
 - **Account:** your Canada Post username and password. Accounts with two-step verification switched on are not supported. Your password is used once to sign in and is never stored.
 
