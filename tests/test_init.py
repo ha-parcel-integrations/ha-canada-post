@@ -1,4 +1,5 @@
 """Tests for Canada Post setup and unload."""
+
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
@@ -25,8 +26,7 @@ from custom_components.canada_post.const import (
 )
 from custom_components.canada_post.tracking.api import CanadaPostApiError
 
-from .payloads import ACTIVE_CODE, delivered_detail
-from .payloads import active_sample as _sample
+from .payloads import ACTIVE_CODE, active_sample as _sample, delivered_detail
 
 OTHER_CODE = "222222222222"
 
@@ -100,7 +100,10 @@ async def test_per_parcel_sensor_spawn_and_remove(hass):
     entry.add_to_hass(hass)
 
     mock = AsyncMock(return_value=_sample())
-    with patch("custom_components.canada_post.tracking.api.CanadaPostTrackingClient.async_get_parcel", new=mock):
+    with patch(
+        "custom_components.canada_post.tracking.api.CanadaPostTrackingClient.async_get_parcel",
+        new=mock,
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -139,7 +142,10 @@ async def test_options_update_applies_live_without_reload(hass):
     entry.add_to_hass(hass)
 
     mock = AsyncMock(return_value=_sample())
-    with patch("custom_components.canada_post.tracking.api.CanadaPostTrackingClient.async_get_parcel", new=mock):
+    with patch(
+        "custom_components.canada_post.tracking.api.CanadaPostTrackingClient.async_get_parcel",
+        new=mock,
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -180,7 +186,12 @@ def _account_entry() -> MockConfigEntry:
 
 
 def _item(track_id: str = ACTIVE_CODE) -> dict:
-    return {"trackId": track_id, "source": "USER", "type": "DEFAULT", "userDescription": "Gift"}
+    return {
+        "trackId": track_id,
+        "source": "USER",
+        "type": "DEFAULT",
+        "userDescription": "Gift",
+    }
 
 
 async def test_account_setup_registers_no_services_and_sensors_work(hass):
@@ -195,10 +206,15 @@ async def test_account_setup_registers_no_services_and_sensors_work(hass):
 
         assert entry.state is ConfigEntryState.LOADED
         # The device is named after the login, so two accounts stay apart.
-        assert hass.states.get("sensor.canada_post_me_example_com_incoming_parcels").state == "1"
+        assert (
+            hass.states.get("sensor.canada_post_me_example_com_incoming_parcels").state
+            == "1"
+        )
         assert not hass.services.has_service(DOMAIN, "track_parcel")
         # The owner's own label names the per-parcel sensor.
-        assert hass.states.get("sensor.canada_post_me_example_com_parcel_gift") is not None
+        assert (
+            hass.states.get("sensor.canada_post_me_example_com_parcel_gift") is not None
+        )
 
         assert await hass.config_entries.async_unload(entry.entry_id)
     assert entry.state is ConfigEntryState.NOT_LOADED
@@ -206,7 +222,9 @@ async def test_account_setup_registers_no_services_and_sensors_work(hass):
 
 async def test_account_unload_keeps_tracking_services(hass):
     tracking = MockConfigEntry(
-        domain=DOMAIN, unique_id=SOURCE_TRACKING, data={CONF_SOURCE: SOURCE_TRACKING},
+        domain=DOMAIN,
+        unique_id=SOURCE_TRACKING,
+        data={CONF_SOURCE: SOURCE_TRACKING},
         options={CONF_PARCELS: []},
     )
     tracking.add_to_hass(hass)
@@ -233,20 +251,29 @@ async def test_account_setup_rejected_refresh_starts_reauth(hass):
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.SETUP_ERROR
-    assert any(flow["context"]["source"] == "reauth" for flow in hass.config_entries.flow.async_progress())
+    assert any(
+        flow["context"]["source"] == "reauth"
+        for flow in hass.config_entries.flow.async_progress()
+    )
 
 
 async def test_account_running_path_rejected_refresh_starts_reauth(hass):
     entry = _account_entry()
     entry.add_to_hass(hass)
     mock = AsyncMock(return_value=[_item()])
-    with patch(f"{ACCOUNT}.async_list_items", new=mock), patch(DETAIL, new=AsyncMock(return_value=_sample())):
+    with (
+        patch(f"{ACCOUNT}.async_list_items", new=mock),
+        patch(DETAIL, new=AsyncMock(return_value=_sample())),
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
         mock.side_effect = CanadaPostAccountReauthRequired("x")
         await entry.runtime_data.coordinator.async_refresh()
         await hass.async_block_till_done()
-    assert any(flow["context"]["source"] == "reauth" for flow in hass.config_entries.flow.async_progress())
+    assert any(
+        flow["context"]["source"] == "reauth"
+        for flow in hass.config_entries.flow.async_progress()
+    )
 
 
 async def test_account_setup_retries_on_list_failure(hass):
@@ -268,7 +295,12 @@ async def test_account_token_callback_persists_tokens(hass):
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await entry.runtime_data.client._token_callback(
-            {CONF_ACCESS_TOKEN: "a2", CONF_REFRESH_TOKEN: "r2", CONF_ID_TOKEN: "i2", CONF_EXPIRES_AT: 5.0}
+            {
+                CONF_ACCESS_TOKEN: "a2",
+                CONF_REFRESH_TOKEN: "r2",
+                CONF_ID_TOKEN: "i2",
+                CONF_EXPIRES_AT: 5.0,
+            }
         )
     assert entry.data[CONF_ID_TOKEN] == "i2"
     assert entry.data[CONF_USERNAME] == "me@example.com"
@@ -306,6 +338,8 @@ async def test_rotated_tokens_do_not_trigger_another_poll(hass):
         await hass.async_block_till_done()
         assert listing.await_count == calls
 
-        hass.config_entries.async_update_entry(entry, options={CONF_INCLUDE_HISTORY: True})
+        hass.config_entries.async_update_entry(
+            entry, options={CONF_INCLUDE_HISTORY: True}
+        )
         await hass.async_block_till_done()
         assert listing.await_count == calls + 1

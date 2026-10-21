@@ -4,6 +4,7 @@ Shapes follow the public tracker's detail response. PINs, names, offices and
 places are fictitious. Keeping them in one module means one place to fix when
 a real parcel shows the shape differs.
 """
+
 from __future__ import annotations
 
 ACTIVE_CODE = "1234567890123456"
@@ -49,10 +50,17 @@ def detail(pin: str = ACTIVE_CODE, status: str = "FullProgress", **extra) -> dic
         "pin": pin,
         "status": status,
         "acceptedDate": "2026-04-27",
-        "expectedDlvryDateTime": {"dlvryDate": "2026-04-29", "revisedDate": "2026-04-30"},
+        "expectedDlvryDateTime": {
+            "dlvryDate": "2026-04-29",
+            "revisedDate": "2026-04-30",
+        },
         "returnPinIndicator": False,
         "deliveryOptions": [],
-        "shipToAddr": {"addrLn1": "1 Example Rd", "city": "Testville", "postCd": "A1A1A1"},
+        "shipToAddr": {
+            "addrLn1": "1 Example Rd",
+            "city": "Testville",
+            "postCd": "A1A1A1",
+        },
         "events": [
             event("0174", "2026-04-29", "08:46:00", "Item out for delivery"),
             event("0190", "2026-04-28", "15:52:17", "Item processed"),
@@ -82,8 +90,14 @@ def pickup_detail(pin: str = ACTIVE_CODE, **extra) -> dict:
     """A parcel waiting at a post office."""
     fields = {
         "events": [
-            event("1701", "2026-04-29", "10:00:00", "Item available for pickup",
-                  retail="Example Office", city="Testville"),
+            event(
+                "1701",
+                "2026-04-29",
+                "10:00:00",
+                "Item available for pickup",
+                retail="Example Office",
+                city="Testville",
+            ),
             event("0174", "2026-04-29", "08:46:00", "Item out for delivery"),
         ],
         **extra,

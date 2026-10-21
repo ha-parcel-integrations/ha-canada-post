@@ -3,6 +3,7 @@
 Firing lives here rather than in either coordinator so the two cannot drift
 apart on it. Every Canada Post parcel is incoming, so there is no outgoing pair.
 """
+
 from __future__ import annotations
 
 from homeassistant.core import HomeAssistant

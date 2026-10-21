@@ -1,4 +1,5 @@
 """Tests for the Canada Post config and options flow."""
+
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
@@ -8,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.canada_post.account.client import (
     CanadaPostAccountApiError,
     CanadaPostAccountInvalidCredentials,
+    CanadaPostAccountReauthRequired,
     CanadaPostAccountTwoStepRequired,
 )
 from custom_components.canada_post.config_flow import (
@@ -39,15 +41,30 @@ PIN = "1234567890123456"
 
 @pytest.mark.parametrize(
     "code",
-    ["12345678901", "123456789012", "1234567890123456", "RN123456789CA",
-     "123456789", "123456789012345"],
+    [
+        "12345678901",
+        "123456789012",
+        "1234567890123456",
+        "RN123456789CA",
+        "123456789",
+        "123456789012345",
+    ],
 )
 def test_valid_codes(code):
     assert valid_tracking_code(code)
 
 
 @pytest.mark.parametrize(
-    "code", ["", "ABC", "1234567890", "12345678901234", "R1123456789CA", "RN12345678CA", "1234567890123456A"]
+    "code",
+    [
+        "",
+        "ABC",
+        "1234567890",
+        "12345678901234",
+        "R1123456789CA",
+        "RN12345678CA",
+        "1234567890123456A",
+    ],
 )
 def test_invalid_codes(code):
     assert not valid_tracking_code(code)
@@ -64,13 +81,17 @@ def test_notice_card_shapes():
 
 
 async def test_user_flow_shows_source_menu(hass):
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
     assert result["type"] == "menu"
     assert result["menu_options"] == ["account", "tracking"]
 
 
 async def test_tracking_hub_created_without_input(hass):
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "tracking"}
     )
@@ -84,7 +105,9 @@ async def test_only_one_tracking_hub(hass):
     MockConfigEntry(
         domain=DOMAIN, unique_id=SOURCE_TRACKING, data={CONF_SOURCE: SOURCE_TRACKING}
     ).add_to_hass(hass)
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "tracking"}
     )
@@ -93,7 +116,9 @@ async def test_only_one_tracking_hub(hass):
 
 
 async def _account_form(hass):
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
     return await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "account"}
     )
@@ -137,14 +162,13 @@ async def test_account_flow_errors(hass, error, key):
 
 
 async def test_account_flow_list_rejection_is_invalid_auth(hass):
-    from custom_components.canada_post.account.client import (
-        CanadaPostAccountReauthRequired,
-    )
-
     form = await _account_form(hass)
     with (
         patch(f"{ACCOUNT}.async_login", new=AsyncMock(return_value=TOKENS)),
-        patch(f"{ACCOUNT}.async_list_items", new=AsyncMock(side_effect=CanadaPostAccountReauthRequired("x"))),
+        patch(
+            f"{ACCOUNT}.async_list_items",
+            new=AsyncMock(side_effect=CanadaPostAccountReauthRequired("x")),
+        ),
     ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: "me", CONF_PASSWORD: "pw"}
@@ -162,7 +186,10 @@ async def test_account_flow_blank_credentials(hass):
 
 async def test_account_flow_two_step_aborts(hass):
     form = await _account_form(hass)
-    with patch(f"{ACCOUNT}.async_login", new=AsyncMock(side_effect=CanadaPostAccountTwoStepRequired("x"))):
+    with patch(
+        f"{ACCOUNT}.async_login",
+        new=AsyncMock(side_effect=CanadaPostAccountTwoStepRequired("x")),
+    ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: "me", CONF_PASSWORD: "pw"}
         )
@@ -172,7 +199,8 @@ async def test_account_flow_two_step_aborts(hass):
 
 async def test_duplicate_account_aborts_case_insensitively(hass):
     MockConfigEntry(
-        domain=DOMAIN, unique_id="account:me@example.com",
+        domain=DOMAIN,
+        unique_id="account:me@example.com",
         data={CONF_SOURCE: SOURCE_ACCOUNT, CONF_USERNAME: "me@example.com"},
     ).add_to_hass(hass)
     form = await _account_form(hass)
@@ -189,7 +217,8 @@ async def test_duplicate_account_aborts_case_insensitively(hass):
 
 def _account_entry() -> MockConfigEntry:
     return MockConfigEntry(
-        domain=DOMAIN, unique_id="account:me@example.com",
+        domain=DOMAIN,
+        unique_id="account:me@example.com",
         data={CONF_SOURCE: SOURCE_ACCOUNT, CONF_USERNAME: "me@example.com", **TOKENS},
     )
 
@@ -236,7 +265,10 @@ async def test_reauth_two_step_aborts(hass):
     entry = _account_entry()
     entry.add_to_hass(hass)
     result = await entry.start_reauth_flow(hass)
-    with patch(f"{ACCOUNT}.async_login", new=AsyncMock(side_effect=CanadaPostAccountTwoStepRequired("x"))):
+    with patch(
+        f"{ACCOUNT}.async_login",
+        new=AsyncMock(side_effect=CanadaPostAccountTwoStepRequired("x")),
+    ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_PASSWORD: "x"}
         )
@@ -343,7 +375,8 @@ async def test_options_settings_keep_parcels(hass):
     entry.add_to_hass(hass)
     result = await _open_options_step(hass, entry, "settings")
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], _settings_input(history=True, filter_type="parcels", amount=5)
+        result["flow_id"],
+        _settings_input(history=True, filter_type="parcels", amount=5),
     )
     assert result["data"][CONF_INCLUDE_HISTORY] is True
     assert result["data"][CONF_DELIVERED_FILTER_TYPE] == "parcels"

@@ -12,6 +12,7 @@ identifiers only. The contract the coordinators rely on:
 * lets ``aiohttp.ClientError`` propagate untouched — ``DataUpdateCoordinator``
   already wraps those into ``UpdateFailed``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -105,9 +106,7 @@ class CanadaPostTrackingClient:
                 )
             return None
         if "pin" not in payload:
-            _warn_envelope_first_sighting(
-                "no pin in body", f"keys={sorted(payload)}"
-            )
+            _warn_envelope_first_sighting("no pin in body", f"keys={sorted(payload)}")
             return None
         return payload
 

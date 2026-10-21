@@ -1,4 +1,5 @@
 """Tests for the shared status map."""
+
 import logging
 
 import pytest
@@ -52,8 +53,14 @@ def test_unseen_value_is_unknown_with_exactly_one_warning(caplog):
 
 
 def test_return_override_both_flags():
-    assert resolve_status({"status": "FullProgressAlert", "returnedToSender": True}) is ParcelStatus.RETURNING
-    assert resolve_status({"status": "InTransit", "returnPinIndicator": True}) is ParcelStatus.RETURNING
+    assert (
+        resolve_status({"status": "FullProgressAlert", "returnedToSender": True})
+        is ParcelStatus.RETURNING
+    )
+    assert (
+        resolve_status({"status": "InTransit", "returnPinIndicator": True})
+        is ParcelStatus.RETURNING
+    )
 
 
 def test_customs_refused_without_return_flags_stays_problem():
@@ -62,8 +69,16 @@ def test_customs_refused_without_return_flags_stays_problem():
 
 
 def test_return_override_never_beats_delivered():
-    assert resolve_status({"status": "Delivered", "returnPinIndicator": True}) is ParcelStatus.DELIVERED
-    assert resolve_status({"status": "InTransit", "returnedToSender": True, "delivered": True}) is ParcelStatus.DELIVERED
+    assert (
+        resolve_status({"status": "Delivered", "returnPinIndicator": True})
+        is ParcelStatus.DELIVERED
+    )
+    assert (
+        resolve_status(
+            {"status": "InTransit", "returnedToSender": True, "delivered": True}
+        )
+        is ParcelStatus.DELIVERED
+    )
 
 
 @pytest.mark.parametrize(("code", "expected"), sorted(EVENT_CODE_MAP.items()))
@@ -77,14 +92,19 @@ def test_event_type_when_code_is_not_special(event_type, expected):
 
 
 def test_attempted_scan_that_sends_the_parcel_back_is_returning():
-    assert map_event_status({"cd": "1419", "type": "Attempted"}) is ParcelStatus.RETURNING
+    assert (
+        map_event_status({"cd": "1419", "type": "Attempted"}) is ParcelStatus.RETURNING
+    )
     assert map_event_status({"cd": "1479", "type": "Attempted"}) is ParcelStatus.PROBLEM
 
 
 def test_unseen_event_type_is_unknown_with_one_warning(caplog):
     with caplog.at_level(logging.WARNING):
         for _ in range(3):
-            assert map_event_status({"cd": "9999", "type": "Mystery"}) is ParcelStatus.UNKNOWN
+            assert (
+                map_event_status({"cd": "9999", "type": "Mystery"})
+                is ParcelStatus.UNKNOWN
+            )
     assert caplog.text.count("Unrecognised Canada Post event type") == 1
 
 
@@ -103,9 +123,13 @@ def test_unmapped_status_falls_back_to_newest_mappable_event_without_warning(cap
 def test_unmapped_status_without_usable_history_warns_once(caplog):
     with caplog.at_level(logging.WARNING):
         for _ in range(2):
-            assert resolve_status({"status": "BrandNewStatus"}, []) is ParcelStatus.UNKNOWN
             assert (
-                resolve_status({"status": "BrandNewStatus"}, [{"cd": "9999", "type": "Mystery"}])
+                resolve_status({"status": "BrandNewStatus"}, []) is ParcelStatus.UNKNOWN
+            )
+            assert (
+                resolve_status(
+                    {"status": "BrandNewStatus"}, [{"cd": "9999", "type": "Mystery"}]
+                )
                 is ParcelStatus.UNKNOWN
             )
     assert caplog.text.count("Unrecognised Canada Post status") == 1
@@ -118,7 +142,9 @@ def test_mapped_status_wins_over_history():
 
 def test_history_fallback_still_gets_the_return_override():
     events = [{"cd": "0170", "type": "Info"}]
-    status = resolve_status({"status": "BrandNewStatus", "returnedToSender": True}, events)
+    status = resolve_status(
+        {"status": "BrandNewStatus", "returnedToSender": True}, events
+    )
     assert status is ParcelStatus.RETURNING
 
 
@@ -138,13 +164,22 @@ def test_event_types_first_seen_on_a_real_account(event_type, code, expected, ca
 
 
 def test_delivered_flag_forces_delivered_whatever_the_status_says():
-    assert resolve_status({"status": "FullProgress", "delivered": True}) is ParcelStatus.DELIVERED
-    assert resolve_status({"status": "BrandNewStatus", "delivered": True}, []) is ParcelStatus.DELIVERED
+    assert (
+        resolve_status({"status": "FullProgress", "delivered": True})
+        is ParcelStatus.DELIVERED
+    )
+    assert (
+        resolve_status({"status": "BrandNewStatus", "delivered": True}, [])
+        is ParcelStatus.DELIVERED
+    )
 
 
 def test_unconfirmed_return_code_warns_once_with_its_issue(caplog):
     with caplog.at_level(logging.WARNING):
         for _ in range(2):
-            assert map_event_status({"cd": "3001", "type": "Info"}) is ParcelStatus.RETURNING
+            assert (
+                map_event_status({"cd": "3001", "type": "Info"})
+                is ParcelStatus.RETURNING
+            )
     assert caplog.text.count("Canada Post return event seen") == 1
     assert "ha-canada-post/issues/3" in caplog.text

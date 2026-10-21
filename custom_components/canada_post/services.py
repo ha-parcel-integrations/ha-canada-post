@@ -6,15 +6,16 @@ can start tracking a parcel straight from a dashboard. Only the tracking hub
 has a parcel list, so an account entry is never a target. A notice card number
 is resolved to its PIN before it is stored.
 """
+
 from __future__ import annotations
 
 import aiohttp
-import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import voluptuous as vol
 
 from .config_flow import (
     async_resolve_tracking_code,

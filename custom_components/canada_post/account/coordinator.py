@@ -4,12 +4,13 @@ Canada Post's account list carries identifiers only, so each listed PIN goes
 through the tracking client and the shared normaliser. Every account parcel is
 incoming: the list has no direction field.
 """
+
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 import logging
 import re
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aiohttp
@@ -86,9 +87,9 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         self._fetch_slots = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY)
         self._current_tier_minutes: int | None = MID_INTERVAL_MINUTES
         self._known_state: dict[str, ParcelStatus] | None = None
-        self._known_delivery_times: (
-            dict[str, tuple[str | None, str | None]] | None
-        ) = None
+        self._known_delivery_times: dict[str, tuple[str | None, str | None]] | None = (
+            None
+        )
         self._cached_device_id: str | None = None
         self.last_success_time: datetime | None = None
 
@@ -166,7 +167,7 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         errors = 0
         retry_afters: list[float] = []
         saw_429 = False
-        for pin, result in zip(to_fetch, results):
+        for pin, result in zip(to_fetch, results, strict=True):
             if isinstance(result, BaseException):
                 if not isinstance(result, (CanadaPostApiError, aiohttp.ClientError)):
                     raise result
@@ -175,7 +176,9 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
                     saw_429 = True
                     if result.retry_after is not None:
                         retry_afters.append(result.retry_after)
-                _LOGGER.warning("Canada Post fetch failed for a listed parcel: %s", result)
+                _LOGGER.warning(
+                    "Canada Post fetch failed for a listed parcel: %s", result
+                )
             elif result is None:
                 self._raw_cache.setdefault(pin, {"pin": pin})
             else:
@@ -196,8 +199,10 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
             )
         self._consecutive_429 = 0
 
-        if to_fetch and errors == len(to_fetch) and not any(
-            pin in self._raw_cache for pin in to_fetch
+        if (
+            to_fetch
+            and errors == len(to_fetch)
+            and not any(pin in self._raw_cache for pin in to_fetch)
         ):
             raise UpdateFailed("Canada Post unreachable for all listed parcels")
 
@@ -211,12 +216,16 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
             parcels.append(self._normalise(raw, pin, item, lang, include_history))
         for track_id, item in placeholders.items():
             parcels.append(
-                self._normalise({"pin": track_id}, track_id, item, lang, include_history)
+                self._normalise(
+                    {"pin": track_id}, track_id, item, lang, include_history
+                )
             )
 
         active = [p for p in parcels if not p["delivered"]]
         delivered = [p for p in parcels if p["delivered"]]
-        self._delivered_pins = {p["barcode"] for p in delivered if p["barcode"] in by_pin}
+        self._delivered_pins = {
+            p["barcode"] for p in delivered if p["barcode"] in by_pin
+        }
         self.delivered = apply_delivered_filter(
             sort_parcels_by_ts(delivered, "delivered_at", descending=True),
             self.config_entry,
@@ -235,7 +244,7 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         self._known_delivery_times = snapshot_delivery_times(incoming)
 
         if not to_fetch or errors < len(to_fetch):
-            self.last_success_time = datetime.now(timezone.utc)
+            self.last_success_time = datetime.now(UTC)
 
         now = dt_util.now()
         self._current_tier_minutes = (

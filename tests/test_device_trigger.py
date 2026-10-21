@@ -1,4 +1,5 @@
 """Tests for Canada Post device triggers."""
+
 from unittest.mock import AsyncMock
 
 from custom_components.canada_post.const import DOMAIN

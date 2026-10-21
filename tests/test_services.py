@@ -1,9 +1,10 @@
 """Tests for the Canada Post services (track_parcel / untrack_parcel)."""
+
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
-import pytest
 from homeassistant.exceptions import ServiceValidationError
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.canada_post.const import (
@@ -76,7 +77,10 @@ async def test_track_parcel_resolves_notice_card(hass):
 
 async def test_track_parcel_unresolved_notice_card_raises(hass):
     entry = await _setup(hass)
-    with patch(DNC, new=AsyncMock(return_value=None)), pytest.raises(ServiceValidationError):
+    with (
+        patch(DNC, new=AsyncMock(return_value=None)),
+        pytest.raises(ServiceValidationError),
+    ):
         await _call(hass, "track_parcel", "123456789012345")
     assert entry.options[CONF_PARCELS] == []
 
@@ -84,7 +88,10 @@ async def test_track_parcel_unresolved_notice_card_raises(hass):
 @pytest.mark.parametrize("error", [CanadaPostApiError("x"), aiohttp.ClientError()])
 async def test_track_parcel_lookup_failure_raises(hass, error):
     await _setup(hass)
-    with patch(DNC, new=AsyncMock(side_effect=error)), pytest.raises(ServiceValidationError):
+    with (
+        patch(DNC, new=AsyncMock(side_effect=error)),
+        pytest.raises(ServiceValidationError),
+    ):
         await _call(hass, "track_parcel", "123456789012345")
 
 
@@ -102,7 +109,9 @@ async def test_untrack_unknown_code_is_noop(hass):
 
 async def test_services_only_see_the_tracking_hub(hass):
     account = MockConfigEntry(
-        domain=DOMAIN, unique_id="account:me", data={CONF_SOURCE: SOURCE_ACCOUNT, CONF_USERNAME: "me", CONF_ACCESS_TOKEN: "a"},
+        domain=DOMAIN,
+        unique_id="account:me",
+        data={CONF_SOURCE: SOURCE_ACCOUNT, CONF_USERNAME: "me", CONF_ACCESS_TOKEN: "a"},
     )
     account.add_to_hass(hass)
     with pytest.raises(ServiceValidationError):

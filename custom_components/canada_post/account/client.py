@@ -3,13 +3,14 @@
 Read-only: it signs in, refreshes its own tokens and lists the account's
 tracked PINs. Parcel detail is fetched elsewhere, through the tracking client.
 """
+
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 import json
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aiohttp
@@ -154,10 +155,18 @@ class CanadaPostAccountClient:
         status, body = await self._token_request(
             {"grant_type": "refresh_token", "refresh_token": self._refresh_token}
         )
-        if status >= 500 or status == 429 or (status != 200 and not isinstance(body, dict)):
-            raise CanadaPostAccountApiError("refresh request failed", status_code=status)
+        if (
+            status >= 500
+            or status == 429
+            or (status != 200 and not isinstance(body, dict))
+        ):
+            raise CanadaPostAccountApiError(
+                "refresh request failed", status_code=status
+            )
         if status != 200 or not isinstance(body, dict):
-            raise CanadaPostAccountReauthRequired("refresh rejected", status_code=status)
+            raise CanadaPostAccountReauthRequired(
+                "refresh rejected", status_code=status
+            )
         if not body.get("access_token") or not body.get("id_token"):
             raise CanadaPostAccountReauthRequired("refresh returned no tokens")
         self._adopt(body)
@@ -231,7 +240,10 @@ class CanadaPostAccountClient:
                         sorted(item) if isinstance(item, dict) else type(item).__name__,
                     )
                     continue
-                if item.get("deleted") is True or item.get("isFlaggedAsNotMine") is True:
+                if (
+                    item.get("deleted") is True
+                    or item.get("isFlaggedAsNotMine") is True
+                ):
                     continue
                 items.append(item)
             next_token = page.get("nextToken")

@@ -3,6 +3,7 @@
 Both sources normalise the same detail payload, so the map lives here and
 neither can drift from it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -109,7 +110,11 @@ def resolve_status(
     returned = detail.get("returnedToSender") is True or (
         detail.get("returnPinIndicator") is True
     )
-    if returned and status is not ParcelStatus.DELIVERED and detail.get("delivered") is not True:
+    if (
+        returned
+        and status is not ParcelStatus.DELIVERED
+        and detail.get("delivered") is not True
+    ):
         return ParcelStatus.RETURNING
     return status
 
@@ -137,9 +142,20 @@ EVENT_CODE_MAP: dict[str, ParcelStatus] = {
 EVENT_TYPE_MAP: dict[str, ParcelStatus] = {
     **dict.fromkeys(
         (
-            "ARRIVALINCANADA", "CONTAINER", "INCOMING", "INDUCTION", "INFOTID",
-            "REVIEWCOMPLETE", "VEHICLEINFO", "PRRECEIVED", "INFOCONT",
-            "DISPATCH", "TOCUST", "FROMCUST", "INFO", "TORETAIL",
+            "ARRIVALINCANADA",
+            "CONTAINER",
+            "INCOMING",
+            "INDUCTION",
+            "INFOTID",
+            "REVIEWCOMPLETE",
+            "VEHICLEINFO",
+            "PRRECEIVED",
+            "INFOCONT",
+            "DISPATCH",
+            "TOCUST",
+            "FROMCUST",
+            "INFO",
+            "TORETAIL",
         ),
         ParcelStatus.IN_TRANSIT,
     ),

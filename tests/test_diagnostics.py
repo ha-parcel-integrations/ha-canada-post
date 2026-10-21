@@ -1,16 +1,19 @@
 """Tests for Canada Post diagnostics."""
+
 from datetime import timedelta
 from unittest.mock import MagicMock
 
-from custom_components.canada_post.diagnostics import (
-    async_get_config_entry_diagnostics,
-)
+from custom_components.canada_post.diagnostics import async_get_config_entry_diagnostics
 
 
 async def test_diagnostics_redacts_and_counts(hass):
     """Diagnostics get pasted into public issues — nothing identifying may survive."""
     entry = MagicMock()
-    entry.data = {"source": "account", "username": "me@example.com", "id_token": "sekrit-token"}
+    entry.data = {
+        "source": "account",
+        "username": "me@example.com",
+        "id_token": "sekrit-token",
+    }
     entry.options = {"parcels": [{"tracking_code": "123456789012"}]}
     entry.runtime_data.coordinator.current_tier_minutes = 15
     entry.runtime_data.coordinator.update_interval = timedelta(minutes=15)
@@ -32,10 +35,20 @@ async def test_diagnostics_redacts_and_counts(hass):
                 "addtnlOrigInfo": "ORIGINTOWN, ON",
                 "addtnlDestInfo": "HOMETOWN, ON",
                 "events": [
-                    {"cd": "0174", "type": "Out", "descEn": "Out for delivery at 1 Example Rd",
-                     "datetime": {"date": "2026-04-29"},
-                     "retailNmEn": "Test PO", "retailNmFr": "Test PO", "retailLocationId": "0000",
-                     "locationAddr": {"city": "Testville", "regionCd": "ON", "postCd": "A1A1A1"}}
+                    {
+                        "cd": "0174",
+                        "type": "Out",
+                        "descEn": "Out for delivery at 1 Example Rd",
+                        "datetime": {"date": "2026-04-29"},
+                        "retailNmEn": "Test PO",
+                        "retailNmFr": "Test PO",
+                        "retailLocationId": "0000",
+                        "locationAddr": {
+                            "city": "Testville",
+                            "regionCd": "ON",
+                            "postCd": "A1A1A1",
+                        },
+                    }
                 ],
                 "account": {"userDescription": "Gift"},
             },

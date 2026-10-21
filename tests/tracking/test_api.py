@@ -1,4 +1,5 @@
 """Tests for the Canada Post detail transport."""
+
 import json
 import logging
 from unittest.mock import AsyncMock, MagicMock
@@ -12,8 +13,7 @@ from custom_components.canada_post.tracking.api import (
     CanadaPostApiError,
     CanadaPostTrackingClient,
 )
-
-from ..payloads import ACTIVE_CODE, detail, not_found
+from tests.payloads import ACTIVE_CODE, detail, not_found
 
 
 def _session_returning(status: int, body: object = None, headers=None) -> MagicMock:

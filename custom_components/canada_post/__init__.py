@@ -1,8 +1,9 @@
 """Canada Post parcel tracker custom component for Home Assistant."""
+
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -46,9 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
     if is_account:
 
         async def async_store_tokens(tokens: dict) -> None:
-            hass.config_entries.async_update_entry(
-                entry, data={**entry.data, **tokens}
-            )
+            hass.config_entries.async_update_entry(entry, data={**entry.data, **tokens})
 
         client = CanadaPostAccountClient(
             async_get_clientsession(hass),
@@ -58,9 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
             expires_at=entry.data.get(CONF_EXPIRES_AT),
             token_callback=async_store_tokens,
         )
-        coordinator = CanadaPostAccountCoordinator(
-            hass, client, tracking_client, entry
-        )
+        coordinator = CanadaPostAccountCoordinator(hass, client, tracking_client, entry)
     else:
         client = tracking_client
         coordinator = CanadaPostCoordinator(hass, client, entry)

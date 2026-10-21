@@ -4,11 +4,12 @@ Everything in this module is a **pure function** — no I/O, no Home Assistant
 objects beyond the config entry's options. The account source gets only a list
 of PINs from Canada Post, so it normalises through here too.
 """
+
 from __future__ import annotations
 
+from datetime import UTC, date, datetime, time, timedelta, timezone
 import logging
 import re
-from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -96,11 +97,11 @@ def parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value))
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -141,7 +142,7 @@ def _parse_offset(value: Any) -> timezone | None:
     if not isinstance(value, str):
         return None
     if value.strip() == "Z":
-        return timezone.utc
+        return UTC
     match = _OFFSET_RE.match(value.strip())
     if not match:
         return None
@@ -306,7 +307,9 @@ def normalize_parcel(
         _pickup_point(newest_first) if status is ParcelStatus.AT_PICKUP_POINT else None
     )
     if status is ParcelStatus.AT_PICKUP_POINT:
-        _warn_pickup_status_first_sighting(detail.get("status"), pickup_point is not None)
+        _warn_pickup_status_first_sighting(
+            detail.get("status"), pickup_point is not None
+        )
     planned_from, planned_to = (None, None) if delivered else _eta(detail)
 
     return {
@@ -361,14 +364,12 @@ def apply_delivered_filter(parcels: list[dict], entry: ConfigEntry) -> list[dict
     shows.
     """
     options = entry.options
-    filter_type = options.get(
-        CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE
-    )
+    filter_type = options.get(CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE)
     amount = int(
         options.get(CONF_DELIVERED_FILTER_AMOUNT, DEFAULT_DELIVERED_FILTER_AMOUNT)
     )
     if filter_type == "days":
-        cutoff = datetime.now(timezone.utc) - timedelta(days=amount)
+        cutoff = datetime.now(UTC) - timedelta(days=amount)
         return [
             parcel
             for parcel in parcels

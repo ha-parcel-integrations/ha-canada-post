@@ -1,4 +1,5 @@
 """Calendar platform for the Canada Post parcel tracker integration."""
+
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta
@@ -20,17 +21,20 @@ PARALLEL_UPDATES = 0
 _DEFAULT_EVENT_DURATION = timedelta(hours=1)
 
 
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: CanadaPostConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Canada Post deliveries calendar from a config entry."""
-    async_add_entities([CanadaPostDeliveriesCalendar(entry.runtime_data.coordinator, entry)])
+    async_add_entities(
+        [CanadaPostDeliveriesCalendar(entry.runtime_data.coordinator, entry)]
+    )
 
 
-class CanadaPostDeliveriesCalendar(CoordinatorEntity[CanadaPostCoordinator], CalendarEntity):
+class CanadaPostDeliveriesCalendar(
+    CoordinatorEntity[CanadaPostCoordinator], CalendarEntity
+):
     """A read-only calendar of expected Canada Post deliveries.
 
     Each active tracked parcel with a known delivery moment becomes an event.
@@ -64,8 +68,10 @@ class CanadaPostDeliveriesCalendar(CoordinatorEntity[CanadaPostCoordinator], Cal
 
             barcode = parcel.get("barcode") or ""
             sender = parcel.get("sender")
-            summary = display_name(parcel) or sender or (
-                f"Parcel {barcode}" if barcode else "Canada Post parcel"
+            summary = (
+                display_name(parcel)
+                or sender
+                or (f"Parcel {barcode}" if barcode else "Canada Post parcel")
             )
             description_parts = [
                 f"Barcode: {barcode}" if barcode else None,
@@ -91,9 +97,7 @@ class CanadaPostDeliveriesCalendar(CoordinatorEntity[CanadaPostCoordinator], Cal
     def event(self) -> CalendarEvent | None:
         """Return the next upcoming calendar event."""
         now = dt_util.now()
-        upcoming = [
-            event for event in self._events() if event.end_datetime_local > now
-        ]
+        upcoming = [event for event in self._events() if event.end_datetime_local > now]
         return (
             min(upcoming, key=lambda event: event.start_datetime_local)
             if upcoming

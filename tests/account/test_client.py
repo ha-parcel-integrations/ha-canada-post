@@ -1,4 +1,5 @@
 """Tests for the account client: sign-in, refresh and the saved-list read."""
+
 import logging
 import time
 from unittest.mock import AsyncMock, MagicMock
@@ -19,7 +20,12 @@ from custom_components.canada_post.const import (
     ACCOUNT_TOKEN_URL,
 )
 
-LOGIN_OK = {"access_token": "a1", "refresh_token": "r1", "id_token": "i1", "expires_in": 3600}
+LOGIN_OK = {
+    "access_token": "a1",
+    "refresh_token": "r1",
+    "id_token": "i1",
+    "expires_in": 3600,
+}
 
 
 class FakeSession:
@@ -52,13 +58,21 @@ def _page(items, token=None):
 
 
 def _item(track_id="123456789012", **extra):
-    return {"id": "x", "trackId": track_id, "deleted": False, "isFlaggedAsNotMine": False, **extra}
+    return {
+        "id": "x",
+        "trackId": track_id,
+        "deleted": False,
+        "isFlaggedAsNotMine": False,
+        **extra,
+    }
 
 
 def _client(session, **kwargs):
     return CanadaPostAccountClient(
         session,
-        access_token="a0", refresh_token="r0", id_token="i0",
+        access_token="a0",
+        refresh_token="r0",
+        id_token="i0",
         **kwargs,
     )
 
@@ -77,13 +91,18 @@ async def test_login_posts_form_and_returns_tokens_not_password():
 
 
 async def test_login_without_expiry_leaves_expires_at_none():
-    session = FakeSession((200, {k: v for k, v in LOGIN_OK.items() if k != "expires_in"}))
+    session = FakeSession(
+        (200, {k: v for k, v in LOGIN_OK.items() if k != "expires_in"})
+    )
     tokens = await CanadaPostAccountClient(session).async_login("me", "pw")
     assert tokens["expires_at"] is None
 
 
 async def test_login_bad_credentials_mapping_error():
-    body = {"error": "mapping_error", "error_description": "Invalid username or password. LFE Authentication failed."}
+    body = {
+        "error": "mapping_error",
+        "error_description": "Invalid username or password. LFE Authentication failed.",
+    }
     with pytest.raises(CanadaPostAccountInvalidCredentials):
         await CanadaPostAccountClient(FakeSession((400, body))).async_login("me", "pw")
 
@@ -98,7 +117,9 @@ async def test_login_bad_credentials_mapping_error():
 )
 async def test_login_second_factor_is_distinct(status, body):
     with pytest.raises(CanadaPostAccountTwoStepRequired):
-        await CanadaPostAccountClient(FakeSession((status, body))).async_login("me", "pw")
+        await CanadaPostAccountClient(FakeSession((status, body))).async_login(
+            "me", "pw"
+        )
 
 
 @pytest.mark.parametrize(
@@ -153,14 +174,21 @@ async def test_refresh_without_callback_is_fine():
 
 @pytest.mark.parametrize(
     "reply",
-    [(400, {"error": "invalid_grant"}), (401, {"error": "x"}), (200, {"access_token": "a"}), (200, [])],
+    [
+        (400, {"error": "invalid_grant"}),
+        (401, {"error": "x"}),
+        (200, {"access_token": "a"}),
+        (200, []),
+    ],
 )
 async def test_rejected_refresh_requires_reauth(reply):
     with pytest.raises(CanadaPostAccountReauthRequired):
         await _client(FakeSession(reply)).async_refresh()
 
 
-@pytest.mark.parametrize("reply", [(503, {}), (502, "junk"), (400, "junk"), (429, {"error": "rate"})])
+@pytest.mark.parametrize(
+    "reply", [(503, {}), (502, "junk"), (400, "junk"), (429, {"error": "rate"})]
+)
 async def test_refresh_outage_is_not_reauth(reply):
     with pytest.raises(CanadaPostAccountApiError) as err:
         await _client(FakeSession(reply)).async_refresh()
@@ -189,9 +217,17 @@ async def test_list_sends_raw_id_token_and_skips_deleted_and_not_mine():
 
 
 async def test_list_follows_next_token_until_null():
-    session = FakeSession(_page([_item("111111111111")], "t1"), _page([_item("222222222222")], "t2"), _page([_item("333333333333")]))
+    session = FakeSession(
+        _page([_item("111111111111")], "t1"),
+        _page([_item("222222222222")], "t2"),
+        _page([_item("333333333333")]),
+    )
     result = await _client(session).async_list_items()
-    assert [i["trackId"] for i in result] == ["111111111111", "222222222222", "333333333333"]
+    assert [i["trackId"] for i in result] == [
+        "111111111111",
+        "222222222222",
+        "333333333333",
+    ]
     assert [c["json"]["variables"]["n"] for c in session.calls] == [None, "t1", "t2"]
 
 
@@ -211,7 +247,9 @@ async def test_list_odd_items_are_skipped_with_one_warning(caplog):
 
 
 async def test_list_items_not_a_list_is_empty():
-    session = FakeSession((200, {"data": {"listTrackSyncItems": {"items": None, "nextToken": None}}}))
+    session = FakeSession(
+        (200, {"data": {"listTrackSyncItems": {"items": None, "nextToken": None}}})
+    )
     assert await _client(session).async_list_items() == []
 
 
@@ -225,7 +263,9 @@ async def test_list_items_not_a_list_is_empty():
 )
 async def test_unauthorized_refreshes_once_and_retries(first):
     callback = AsyncMock()
-    session = FakeSession(first, (200, {**LOGIN_OK, "id_token": "i2"}), _page([_item()]))
+    session = FakeSession(
+        first, (200, {**LOGIN_OK, "id_token": "i2"}), _page([_item()])
+    )
     client = _client(session, token_callback=callback)
     assert len(await client.async_list_items()) == 1
     assert session.calls[2]["headers"] == {"Authorization": "i2"}
@@ -262,7 +302,14 @@ async def test_fresh_token_is_not_refreshed():
 
 @pytest.mark.parametrize(
     "reply",
-    [(500, {"data": None}), (200, {"data": {"listTrackSyncItems": None}, "errors": [{"errorType": "Other"}]}), (200, "junk")],
+    [
+        (500, {"data": None}),
+        (
+            200,
+            {"data": {"listTrackSyncItems": None}, "errors": [{"errorType": "Other"}]},
+        ),
+        (200, "junk"),
+    ],
 )
 async def test_other_list_failures_are_api_errors(reply):
     with pytest.raises(CanadaPostAccountApiError) as err:

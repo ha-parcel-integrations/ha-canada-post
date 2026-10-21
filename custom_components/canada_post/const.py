@@ -1,4 +1,5 @@
 """Constants for the Canada Post parcel tracker integration."""
+
 from enum import StrEnum
 
 from homeassistant.const import Platform
@@ -16,14 +17,14 @@ class ParcelStatus(StrEnum):
     roughly the order a parcel moves through.
     """
 
-    REGISTERED = "registered"               # Sender announced the parcel; not handed over yet
-    IN_TRANSIT = "in_transit"               # In the carrier's network
-    OUT_FOR_DELIVERY = "out_for_delivery"   # On a delivery vehicle today
-    AT_PICKUP_POINT = "at_pickup_point"     # Ready to collect at a pickup location
-    DELIVERED = "delivered"                 # Handed over
-    RETURNING = "returning"                 # Failed delivery, going back to sender
-    PROBLEM = "problem"                     # Carrier reports an exception/issue
-    UNKNOWN = "unknown"                     # Raw status we have not mapped yet
+    REGISTERED = "registered"  # Sender announced the parcel; not handed over yet
+    IN_TRANSIT = "in_transit"  # In the carrier's network
+    OUT_FOR_DELIVERY = "out_for_delivery"  # On a delivery vehicle today
+    AT_PICKUP_POINT = "at_pickup_point"  # Ready to collect at a pickup location
+    DELIVERED = "delivered"  # Handed over
+    RETURNING = "returning"  # Failed delivery, going back to sender
+    PROBLEM = "problem"  # Carrier reports an exception/issue
+    UNKNOWN = "unknown"  # Raw status we have not mapped yet
 
 
 PLATFORMS = [Platform.BUTTON, Platform.CALENDAR, Platform.SENSOR]
@@ -66,7 +67,9 @@ TRACKING_URL = (
     "https://www.canadapost-postescanada.ca/track-reperage/{lang}#/details/{pin}"
 )
 
-ACCOUNT_TOKEN_URL = "https://sso-osu.canadapost-postescanada.ca/mga/sps/oauth/oauth20/token"
+ACCOUNT_TOKEN_URL = (
+    "https://sso-osu.canadapost-postescanada.ca/mga/sps/oauth/oauth20/token"
+)
 ACCOUNT_CLIENT_ID = "cpc-nativeapp-2020"
 ACCOUNT_SCOPE = "openid profile"
 ACCOUNT_GRAPHQL_URL = (

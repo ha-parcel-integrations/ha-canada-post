@@ -1,11 +1,13 @@
 """Tests for the account coordinator: list, then detail per PIN."""
+
 import asyncio
 from unittest.mock import AsyncMock
 
 import aiohttp
-import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import UpdateFailed
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.canada_post.account.client import (
@@ -26,8 +28,7 @@ from custom_components.canada_post.const import (
     ParcelStatus,
 )
 from custom_components.canada_post.tracking.api import CanadaPostApiError
-
-from ..payloads import active_sample, delivered_detail
+from tests.payloads import active_sample, delivered_detail
 
 PIN_A = "111111111111"
 PIN_B = "222222222222"
@@ -35,7 +36,13 @@ DNC = "123456789012345"
 
 
 def _item(track_id, **extra):
-    return {"trackId": track_id, "source": "SET_AND_FORGET", "type": "DEFAULT", "userDescription": None, **extra}
+    return {
+        "trackId": track_id,
+        "source": "SET_AND_FORGET",
+        "type": "DEFAULT",
+        "userDescription": None,
+        **extra,
+    }
 
 
 def _make(hass, items, detail=None, **options):
@@ -59,14 +66,18 @@ def _make(hass, items, detail=None, **options):
 
 
 async def test_lists_then_fetches_detail_per_pin_through_tracking_client(hass):
-    coordinator, client, tracking = _make(
+    coordinator, _, tracking = _make(
         hass, [_item(PIN_A, userDescription="Gift", source="FLEX"), _item(PIN_B)]
     )
     data = await coordinator._async_update_data()
     assert {p["barcode"] for p in data} == {PIN_A, PIN_B}
     assert tracking.async_get_parcel.await_count == 2
     parcel = next(p for p in data if p["barcode"] == PIN_A)
-    assert parcel["raw"]["account"] == {"source": "FLEX", "type": "DEFAULT", "userDescription": "Gift"}
+    assert parcel["raw"]["account"] == {
+        "source": "FLEX",
+        "type": "DEFAULT",
+        "userDescription": "Gift",
+    }
     assert parcel["pickup"] is False  # a FLEX source is a hint only
     assert coordinator.last_success_time is not None
 
@@ -79,8 +90,11 @@ async def test_account_extras_do_not_mutate_the_cached_detail(hass):
 
 async def test_delivered_pins_are_not_refetched(hass):
     coordinator, _, tracking = _make(
-        hass, [_item(PIN_A), _item(PIN_B)],
-        detail=lambda pin: delivered_detail(pin) if pin == PIN_A else active_sample(pin),
+        hass,
+        [_item(PIN_A), _item(PIN_B)],
+        detail=lambda pin: (
+            delivered_detail(pin) if pin == PIN_A else active_sample(pin)
+        ),
     )
     await coordinator._async_update_data()
     await coordinator._async_update_data()
@@ -107,7 +121,9 @@ async def test_one_bad_pin_keeps_the_others_and_its_previous_value(hass):
 
 
 async def test_every_fetch_failing_with_nothing_cached_is_update_failed(hass):
-    coordinator, _, _ = _make(hass, [_item(PIN_A)], detail=AsyncMock(side_effect=aiohttp.ClientError("x")))
+    coordinator, _, _ = _make(
+        hass, [_item(PIN_A)], detail=AsyncMock(side_effect=aiohttp.ClientError("x"))
+    )
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
     assert coordinator.last_success_time is None
@@ -130,10 +146,11 @@ async def test_detail_fetches_are_capped_in_parallel(hass):
         peak = max(peak, running)
         await asyncio.sleep(0)
         running -= 1
-        return None
 
     pins = [f"{n:016d}" for n in range(1, 21)]
-    coordinator, _, _ = _make(hass, [_item(p) for p in pins], detail=AsyncMock(side_effect=slow))
+    coordinator, _, _ = _make(
+        hass, [_item(p) for p in pins], detail=AsyncMock(side_effect=slow)
+    )
     await coordinator._async_update_data()
     assert 1 <= peak <= DETAIL_FETCH_CONCURRENCY
 
@@ -147,15 +164,20 @@ async def test_not_found_detail_keeps_cache_or_placeholder(hass):
 
 
 async def test_unexpected_exception_is_not_swallowed(hass):
-    coordinator, _, _ = _make(hass, [_item(PIN_A)], detail=AsyncMock(side_effect=ValueError("bug")))
+    coordinator, _, _ = _make(
+        hass, [_item(PIN_A)], detail=AsyncMock(side_effect=ValueError("bug"))
+    )
     with pytest.raises(ValueError):
         await coordinator._async_update_data()
 
 
 async def test_429_backs_off_with_retry_after(hass):
     coordinator, _, _ = _make(
-        hass, [_item(PIN_A)],
-        detail=AsyncMock(side_effect=CanadaPostApiError("HTTP 429", status_code=429, retry_after=90)),
+        hass,
+        [_item(PIN_A)],
+        detail=AsyncMock(
+            side_effect=CanadaPostApiError("HTTP 429", status_code=429, retry_after=90)
+        ),
     )
     with pytest.raises(UpdateFailed) as err:
         await coordinator._async_update_data()
@@ -164,7 +186,9 @@ async def test_429_backs_off_with_retry_after(hass):
 
 async def test_429_without_header_uses_exponential_backoff(hass):
     coordinator, _, _ = _make(
-        hass, [_item(PIN_A)], detail=AsyncMock(side_effect=CanadaPostApiError("HTTP 429", status_code=429))
+        hass,
+        [_item(PIN_A)],
+        detail=AsyncMock(side_effect=CanadaPostApiError("HTTP 429", status_code=429)),
     )
     with pytest.raises(UpdateFailed) as err:
         await coordinator._async_update_data()
@@ -172,7 +196,7 @@ async def test_429_without_header_uses_exponential_backoff(hass):
 
 
 async def test_429_counter_resets_on_success(hass):
-    coordinator, _, tracking = _make(hass, [_item(PIN_A)])
+    coordinator, _, _ = _make(hass, [_item(PIN_A)])
     coordinator._consecutive_429 = 3
     await coordinator._async_update_data()
     assert coordinator._consecutive_429 == 0
@@ -226,9 +250,13 @@ async def test_every_account_parcel_fires_the_incoming_event_set_only(hass):
     coordinator, client, tracking = _make(hass, [_item(PIN_A)])
     fired = []
     for name in ("registered", "status_changed", "delivered", "delivery_time_changed"):
-        hass.bus.async_listen(f"{DOMAIN}_parcel_{name}", lambda e: fired.append(e.event_type))
+        hass.bus.async_listen(
+            f"{DOMAIN}_parcel_{name}", lambda e: fired.append(e.event_type)
+        )
     outgoing = []
-    hass.bus.async_listen(f"{DOMAIN}_outgoing_parcel_status_changed", lambda e: outgoing.append(e))
+    hass.bus.async_listen(
+        f"{DOMAIN}_outgoing_parcel_status_changed", lambda e: outgoing.append(e)
+    )
     await coordinator._async_update_data()  # first refresh: silent
     client.async_list_items.return_value = [_item(PIN_A), _item(PIN_B)]
     tracking.async_get_parcel.side_effect = lambda pin: (
@@ -257,8 +285,6 @@ async def test_empty_account_still_polls(hass):
 
 
 async def test_device_id_is_cached(hass):
-    from homeassistant.helpers import device_registry as dr
-
     coordinator, _, _ = _make(hass, [])
     assert coordinator._device_id() is None
     device = dr.async_get(hass).async_get_or_create(
