@@ -61,6 +61,8 @@ _DNC_RE = re.compile(r"^(\d{9}|\d{15})$")
 class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
     """Refresh the account's tracked parcels; polling never fully suspends."""
 
+    config_entry: ConfigEntry
+
     def __init__(
         self,
         hass: HomeAssistant,

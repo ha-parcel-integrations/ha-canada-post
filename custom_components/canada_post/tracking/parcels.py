@@ -191,11 +191,11 @@ def _newest_first(
 ) -> list[tuple[datetime | None, dict]]:
     """Order by parsed time, newest first; undated events go last."""
     dated = sorted(
-        (pair for pair in pairs if pair[0] is not None),
+        ((moment, event) for moment, event in pairs if moment is not None),
         key=lambda pair: pair[0],
         reverse=True,
     )
-    return dated + [pair for pair in pairs if pair[0] is None]
+    return [*dated, *(pair for pair in pairs if pair[0] is None)]
 
 
 def build_history(

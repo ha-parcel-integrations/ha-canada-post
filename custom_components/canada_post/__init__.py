@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
         async def async_store_tokens(tokens: dict) -> None:
             hass.config_entries.async_update_entry(entry, data={**entry.data, **tokens})
 
-        client = CanadaPostAccountClient(
+        account_client = CanadaPostAccountClient(
             async_get_clientsession(hass),
             access_token=entry.data.get(CONF_ACCESS_TOKEN),
             refresh_token=entry.data.get(CONF_REFRESH_TOKEN),
@@ -57,10 +57,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
             expires_at=entry.data.get(CONF_EXPIRES_AT),
             token_callback=async_store_tokens,
         )
-        coordinator = CanadaPostAccountCoordinator(hass, client, tracking_client, entry)
+        client: CanadaPostTrackingClient | CanadaPostAccountClient = account_client
+        coordinator: CanadaPostCoordinator | CanadaPostAccountCoordinator = (
+            CanadaPostAccountCoordinator(hass, account_client, tracking_client, entry)
+        )
     else:
         client = tracking_client
-        coordinator = CanadaPostCoordinator(hass, client, entry)
+        coordinator = CanadaPostCoordinator(hass, tracking_client, entry)
 
     # Fetch initial data here, before forwarding to platforms. Raising
     # ConfigEntryNotReady from a forwarded platform is too late for HA to catch

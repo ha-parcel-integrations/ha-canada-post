@@ -127,8 +127,11 @@ class CanadaPostAccountClient:
         self._access_token = payload["access_token"]
         self._id_token = payload["id_token"]
         self._refresh_token = payload.get("refresh_token") or self._refresh_token
+        expires_in = payload.get("expires_in")
         try:
-            self._expires_at = time.time() + float(payload.get("expires_in"))
+            self._expires_at = (
+                None if expires_in is None else time.time() + float(expires_in)
+            )
         except (TypeError, ValueError):
             self._expires_at = None
 

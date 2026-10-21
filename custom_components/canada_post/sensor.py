@@ -16,9 +16,13 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 
 from . import CanadaPostConfigEntry
+from .account.coordinator import CanadaPostAccountCoordinator
 from .const import DOMAIN, ParcelStatus
 from .device import ATTRIBUTION, build_device_info
 from .tracking.coordinator import CanadaPostCoordinator
@@ -85,7 +89,7 @@ async def async_setup_entry(
 
 
 class CanadaPostIncomingParcelsSensor(
-    CoordinatorEntity[CanadaPostCoordinator], SensorEntity
+    CoordinatorEntity[DataUpdateCoordinator[list[dict]]], SensorEntity
 ):
     """Summary sensor: count of active (not-yet-delivered) tracked parcels.
 
@@ -102,7 +106,7 @@ class CanadaPostIncomingParcelsSensor(
 
     def __init__(
         self,
-        coordinator: CanadaPostCoordinator,
+        coordinator: DataUpdateCoordinator[list[dict]],
         entry: ConfigEntry,
         async_add_entities: AddEntitiesCallback,
         known_barcodes: set[str] | None = None,
@@ -151,7 +155,9 @@ class CanadaPostIncomingParcelsSensor(
         super()._handle_coordinator_update()
 
 
-class CanadaPostParcelSensor(CoordinatorEntity[CanadaPostCoordinator], SensorEntity):
+class CanadaPostParcelSensor(
+    CoordinatorEntity[DataUpdateCoordinator[list[dict]]], SensorEntity
+):
     """Per-parcel sensor reporting the status of one tracked Canada Post parcel."""
 
     _attr_has_entity_name = True
@@ -160,7 +166,10 @@ class CanadaPostParcelSensor(CoordinatorEntity[CanadaPostCoordinator], SensorEnt
     _unrecorded_attributes = frozenset({"raw", "history"})
 
     def __init__(
-        self, coordinator: CanadaPostCoordinator, entry: ConfigEntry, barcode: str
+        self,
+        coordinator: DataUpdateCoordinator[list[dict]],
+        entry: ConfigEntry,
+        barcode: str,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -191,7 +200,7 @@ class CanadaPostParcelSensor(CoordinatorEntity[CanadaPostCoordinator], SensorEnt
 
 
 class CanadaPostNextDeliverySensor(
-    CoordinatorEntity[CanadaPostCoordinator], SensorEntity
+    CoordinatorEntity[DataUpdateCoordinator[list[dict]]], SensorEntity
 ):
     """Earliest expected delivery datetime across all active parcels."""
 
@@ -200,7 +209,9 @@ class CanadaPostNextDeliverySensor(
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_attribution = ATTRIBUTION
 
-    def __init__(self, coordinator: CanadaPostCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self, coordinator: DataUpdateCoordinator[list[dict]], entry: ConfigEntry
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_next_delivery"
@@ -240,7 +251,7 @@ class CanadaPostNextDeliverySensor(
 
 
 class _CanadaPostPickupListSensor(
-    CoordinatorEntity[CanadaPostCoordinator], SensorEntity
+    CoordinatorEntity[DataUpdateCoordinator[list[dict]]], SensorEntity
 ):
     """Base for the canonical pickup-point summary views."""
 
@@ -248,8 +259,14 @@ class _CanadaPostPickupListSensor(
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_attribution = ATTRIBUTION
     _unrecorded_attributes = frozenset({"parcels"})
+    _suffix: str
 
-    def __init__(self, coordinator: CanadaPostCoordinator, entry: ConfigEntry) -> None:
+    def _parcels(self) -> list[dict]:
+        raise NotImplementedError
+
+    def __init__(
+        self, coordinator: DataUpdateCoordinator[list[dict]], entry: ConfigEntry
+    ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{self._suffix}"
         self._attr_device_info = build_device_info(entry)
@@ -278,7 +295,8 @@ class CanadaPostAwaitingPickupSensor(_CanadaPostPickupListSensor):
 
 
 class CanadaPostDeliveredParcelsSensor(
-    CoordinatorEntity[CanadaPostCoordinator], SensorEntity
+    CoordinatorEntity[CanadaPostCoordinator | CanadaPostAccountCoordinator],
+    SensorEntity,
 ):
     """Recently delivered tracked Canada Post parcels."""
 
@@ -288,7 +306,11 @@ class CanadaPostDeliveredParcelsSensor(
     _attr_attribution = ATTRIBUTION
     _unrecorded_attributes = frozenset({"parcels"})
 
-    def __init__(self, coordinator: CanadaPostCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        coordinator: CanadaPostCoordinator | CanadaPostAccountCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_delivered_parcels"
@@ -306,7 +328,8 @@ class CanadaPostDeliveredParcelsSensor(
 
 
 class CanadaPostLastUpdateSensor(
-    CoordinatorEntity[CanadaPostCoordinator], SensorEntity
+    CoordinatorEntity[CanadaPostCoordinator | CanadaPostAccountCoordinator],
+    SensorEntity,
 ):
     """Diagnostic sensor reporting when Canada Post was last polled successfully."""
 
@@ -316,7 +339,11 @@ class CanadaPostLastUpdateSensor(
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_attribution = ATTRIBUTION
 
-    def __init__(self, coordinator: CanadaPostCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        coordinator: CanadaPostCoordinator | CanadaPostAccountCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_last_update"

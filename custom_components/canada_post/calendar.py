@@ -8,12 +8,14 @@ from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 from homeassistant.util import dt as dt_util
 
 from . import CanadaPostConfigEntry
 from .device import ATTRIBUTION, build_device_info
-from .tracking.coordinator import CanadaPostCoordinator
 from .tracking.parcels import display_name, parse_iso
 
 PARALLEL_UPDATES = 0
@@ -33,7 +35,7 @@ async def async_setup_entry(
 
 
 class CanadaPostDeliveriesCalendar(
-    CoordinatorEntity[CanadaPostCoordinator], CalendarEntity
+    CoordinatorEntity[DataUpdateCoordinator[list[dict]]], CalendarEntity
 ):
     """A read-only calendar of expected Canada Post deliveries.
 
@@ -46,7 +48,9 @@ class CanadaPostDeliveriesCalendar(
     _attr_translation_key = "deliveries"
     _attr_attribution = ATTRIBUTION
 
-    def __init__(self, coordinator: CanadaPostCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self, coordinator: DataUpdateCoordinator[list[dict]], entry: ConfigEntry
+    ) -> None:
         """Initialize the calendar."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_deliveries"
@@ -62,9 +66,11 @@ class CanadaPostDeliveriesCalendar(
             local = dt_util.as_local(start)
             if end is None and local.time() == time.min:
                 # A date-only ETA is an all-day event, not an hour after midnight.
-                start, end = local.date(), local.date() + timedelta(days=1)
+                event_start, event_end = local.date(), local.date() + timedelta(days=1)
             elif end is None or end <= start:
-                end = start + _DEFAULT_EVENT_DURATION
+                event_start, event_end = start, start + _DEFAULT_EVENT_DURATION
+            else:
+                event_start, event_end = start, end
 
             barcode = parcel.get("barcode") or ""
             sender = parcel.get("sender")
@@ -83,8 +89,8 @@ class CanadaPostDeliveriesCalendar(
 
             events.append(
                 CalendarEvent(
-                    start=start,
-                    end=end,
+                    start=event_start,
+                    end=event_end,
                     summary=summary,
                     description=description or None,
                     location=location,
