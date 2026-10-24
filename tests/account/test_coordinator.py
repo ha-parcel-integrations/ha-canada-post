@@ -1,7 +1,8 @@
 """Tests for the account coordinator: list, then detail per PIN."""
 
 import asyncio
-from unittest.mock import AsyncMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import aiohttp
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -24,7 +25,9 @@ from custom_components.canada_post.const import (
     CONF_SOURCE,
     DETAIL_FETCH_CONCURRENCY,
     DOMAIN,
+    MID_INTERVAL_MINUTES,
     SOURCE_ACCOUNT,
+    STAGGER_MINUTES,
     ParcelStatus,
 )
 from custom_components.canada_post.tracking.api import CanadaPostApiError
@@ -292,3 +295,24 @@ async def test_device_id_is_cached(hass):
     )
     assert coordinator._device_id() == device.id
     assert coordinator._device_id() == device.id
+
+
+async def test_failed_poll_drops_the_overnight_interval(hass):
+    coordinator, _, _ = _make(hass, [])
+    coordinator.update_interval = timedelta(hours=5, minutes=40)
+
+    noon = datetime(2026, 1, 15, 12, tzinfo=UTC)
+    with (
+        patch.object(coordinator, "_async_poll", side_effect=TimeoutError),
+        patch(
+            "custom_components.canada_post.account.coordinator.dt_util.now",
+            return_value=noon,
+        ),
+        pytest.raises(TimeoutError),
+    ):
+        await coordinator._async_update_data()
+
+    assert coordinator.update_interval is not None
+    assert coordinator.update_interval <= timedelta(
+        minutes=MID_INTERVAL_MINUTES + STAGGER_MINUTES
+    )
