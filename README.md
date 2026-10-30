@@ -124,6 +124,7 @@ Standard HA removal applies: **Settings → Devices & Services → Canada Post �
 | `sensor.canada_post_next_delivery` | Earliest expected delivery moment across all active parcels |
 | `sensor.canada_post_awaiting_pickup` | Parcels ready to collect at a pickup point |
 | `sensor.canada_post_delivered_parcels` | Recently delivered parcels (see the retention option) |
+| `calendar.canada_post_deliveries` | Read-only calendar of expected deliveries, no extra API calls |
 | `sensor.canada_post_last_successful_update` | Diagnostic: when Canada Post was last polled successfully |
 
 An account entry's device is named after the login (`Canada Post (<username>)`), so its entity IDs carry the username, e.g. `sensor.canada_post_<username>_incoming_parcels`.
@@ -191,7 +192,7 @@ logger:
 - **A parcel shows `unknown`** — Canada Post has no history for it yet (an unknown or expired PIN looks the same), or the code is wrong. It will pick up automatically once scanned.
 - **"Two-step verification is not supported"** — the account has two-step verification switched on. Turn it off for the account, or use the tracking-codes source. Support is tracked in [#4](https://github.com/ha-parcel-integrations/ha-canada-post/issues/4).
 - **A notice card number is not found** — Canada Post found no single matching parcel for it. Enter the parcel's PIN instead.
-- **A status logs "Unrecognised Canada Post status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-canada-post/issues/new) with the logged line so the mapping can be extended.
+- **A status logs "Unrecognised Canada Post status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-canada-post/issues/new?template=unrecognised_status.yml) with the logged line so the mapping can be extended.
 
 ## Related integrations
 
