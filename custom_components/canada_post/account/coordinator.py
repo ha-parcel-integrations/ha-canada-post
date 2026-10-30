@@ -242,13 +242,15 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         self._delivered_pins = {
             p["barcode"] for p in delivered if p["barcode"] in by_pin
         }
-        self.delivered = apply_delivered_filter(
-            sort_parcels_by_ts(delivered, "delivered_at", descending=True),
-            self.config_entry,
+        delivered_sorted = sort_parcels_by_ts(
+            delivered, "delivered_at", descending=True
         )
+        self.delivered = apply_delivered_filter(delivered_sorted, self.config_entry)
         active = sort_parcels_by_ts(active, "planned_from")
 
-        incoming = active + self.delivered
+        # Events and remembered state cover every parcel; the retention option
+        # only limits what the delivered sensor shows.
+        incoming = active + delivered_sorted
         fire_incoming_change_events(
             self.hass,
             incoming,
