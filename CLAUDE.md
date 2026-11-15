@@ -107,6 +107,10 @@ unique id. A second-factor challenge aborts with `two_step_not_supported`
 instead of looping. Transport constants live only in `const.py` and never
 reach the UI, diagnostics or a log line; client errors never carry a response
 body. `username` and all tokens are in `diagnostics.TO_REDACT`.
+Logins the integration stops holding are revoked, best effort: removing an
+account entry, a successful reauth (the old token), a duplicate account and a
+sign-in whose list call failed (the new token). A failed revocation only logs
+a warning naming the entry id; it never blocks the flow or the removal.
 
 **Read-only against the account.** Never write to the saved list. Items the
 user flagged "not mine" and deleted items are skipped. Mail notifications are

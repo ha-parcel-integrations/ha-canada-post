@@ -113,7 +113,7 @@ Canada Post gives an expected delivery *date*. Until a delivery window is seen, 
 
 ## Removal
 
-Standard HA removal applies: **Settings → Devices & Services → Canada Post → ⋮ → Delete**. Nothing is stored on Canada Post's side. For an account entry, the tokens stored in Home Assistant are removed with it.
+Standard HA removal applies: **Settings → Devices & Services → Canada Post → ⋮ → Delete**. For an account entry, the tokens stored in Home Assistant are removed with it, and Home Assistant's login is signed out at Canada Post; if that fails, a warning names the entry.
 
 ## Sensors
 

@@ -34,6 +34,7 @@ from custom_components.canada_post.const import (
 from custom_components.canada_post.tracking.api import CanadaPostApiError
 
 ACCOUNT = "custom_components.canada_post.account.client.CanadaPostAccountClient"
+REVOKE = "custom_components.canada_post.config_flow.async_revoke"
 DNC = "custom_components.canada_post.tracking.api.CanadaPostTrackingClient.async_resolve_dnc"
 TOKENS = {"access_token": "a", "refresh_token": "r", "id_token": "i", "expires_at": 1.0}
 PIN = "1234567890123456"
@@ -129,10 +130,12 @@ async def test_account_flow_stores_tokens_never_the_password(hass):
     with (
         patch(f"{ACCOUNT}.async_login", new=AsyncMock(return_value=TOKENS)) as login,
         patch(f"{ACCOUNT}.async_list_items", new=AsyncMock(return_value=[])) as listing,
+        patch(REVOKE, new=AsyncMock()) as revoke,
     ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: " Me@Example.com ", CONF_PASSWORD: "pw"}
         )
+    revoke.assert_not_awaited()
     login.assert_awaited_once_with("me@example.com", "pw")
     listing.assert_awaited()
     assert result["type"] == "create_entry"
@@ -153,12 +156,16 @@ async def test_account_flow_stores_tokens_never_the_password(hass):
 )
 async def test_account_flow_errors(hass, error, key):
     form = await _account_form(hass)
-    with patch(f"{ACCOUNT}.async_login", new=AsyncMock(side_effect=error)):
+    with (
+        patch(f"{ACCOUNT}.async_login", new=AsyncMock(side_effect=error)),
+        patch(REVOKE, new=AsyncMock()) as revoke,
+    ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: "me", CONF_PASSWORD: "pw"}
         )
     assert result["type"] == "form"
     assert result["errors"] == {"base": key}
+    revoke.assert_not_awaited()
 
 
 async def test_account_flow_list_rejection_is_invalid_auth(hass):
@@ -169,11 +176,13 @@ async def test_account_flow_list_rejection_is_invalid_auth(hass):
             f"{ACCOUNT}.async_list_items",
             new=AsyncMock(side_effect=CanadaPostAccountReauthRequired("x")),
         ),
+        patch(REVOKE, new=AsyncMock()) as revoke,
     ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: "me", CONF_PASSWORD: "pw"}
         )
     assert result["errors"] == {"base": "invalid_auth"}
+    assert revoke.await_args.args[1] == "r"
 
 
 async def test_account_flow_blank_credentials(hass):
@@ -207,12 +216,14 @@ async def test_duplicate_account_aborts_case_insensitively(hass):
     with (
         patch(f"{ACCOUNT}.async_login", new=AsyncMock(return_value=TOKENS)),
         patch(f"{ACCOUNT}.async_list_items", new=AsyncMock(return_value=[])),
+        patch(REVOKE, new=AsyncMock()) as revoke,
     ):
         result = await hass.config_entries.flow.async_configure(
             form["flow_id"], {CONF_USERNAME: "ME@EXAMPLE.COM", CONF_PASSWORD: "pw"}
         )
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
+    assert revoke.await_args.args[1] == "r"
 
 
 def _account_entry() -> MockConfigEntry:
@@ -229,14 +240,16 @@ async def test_reauth_keeps_unique_id_and_replaces_tokens(hass):
     result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
     assert result["description_placeholders"]["username"] == "me@example.com"
-    new = {**TOKENS, "id_token": "new"}
+    new = {**TOKENS, "id_token": "new", "refresh_token": "r-new"}
     with (
         patch(f"{ACCOUNT}.async_login", new=AsyncMock(return_value=new)) as login,
         patch.object(hass.config_entries, "async_schedule_reload"),
+        patch(REVOKE, new=AsyncMock()) as revoke,
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_PASSWORD: "pw2"}
         )
+    assert revoke.await_args.args[1] == "r"
     login.assert_awaited_once_with("me@example.com", "pw2")
     assert result["type"] == "abort" and result["reason"] == "reauth_successful"
     assert entry.data[CONF_ID_TOKEN] == "new"
@@ -382,3 +395,21 @@ async def test_options_settings_keep_parcels(hass):
     assert result["data"][CONF_DELIVERED_FILTER_TYPE] == "parcels"
     assert result["data"][CONF_DELIVERED_FILTER_AMOUNT] == 5
     assert result["data"][CONF_PARCELS] == [{CONF_TRACKING_CODE: PIN}]
+
+
+async def test_reauth_keeps_the_new_login_when_the_old_cannot_be_ended(hass, caplog):
+    entry = _account_entry()
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+    new = {**TOKENS, "refresh_token": "r-new"}
+    with (
+        patch(f"{ACCOUNT}.async_login", new=AsyncMock(return_value=new)),
+        patch.object(hass.config_entries, "async_schedule_reload"),
+        patch(REVOKE, new=AsyncMock(side_effect=CanadaPostAccountApiError("x"))),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_PASSWORD: "pw2"}
+        )
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["refresh_token"] == "r-new"
+    assert "couldn't be ended" in caplog.text

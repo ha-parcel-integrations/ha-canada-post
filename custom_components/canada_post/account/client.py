@@ -18,6 +18,7 @@ import aiohttp
 from ..const import (
     ACCOUNT_CLIENT_ID,
     ACCOUNT_GRAPHQL_URL,
+    ACCOUNT_REVOKE_URL,
     ACCOUNT_SCOPE,
     ACCOUNT_TOKEN_REFRESH_MARGIN_SECONDS,
     ACCOUNT_TOKEN_URL,
@@ -77,6 +78,24 @@ class CanadaPostAccountReauthRequired(CanadaPostAccountApiError):
 def _looks_like_second_factor(payload: Any) -> bool:
     text = json.dumps(payload, default=str).lower() if payload is not None else ""
     return _SECOND_FACTOR.search(text) is not None
+
+
+async def async_revoke(session: aiohttp.ClientSession, refresh_token: str) -> None:
+    """End a login at Canada Post, so its refresh token can't renew access."""
+    try:
+        async with session.post(
+            ACCOUNT_REVOKE_URL,
+            data={
+                "token": refresh_token,
+                "token_type_hint": "refresh_token",
+                "client_id": ACCOUNT_CLIENT_ID,
+            },
+        ) as response:
+            status = response.status
+    except (aiohttp.ClientError, TimeoutError):
+        raise CanadaPostAccountApiError("sign-out service unreachable") from None
+    if status != 200:
+        raise CanadaPostAccountApiError("sign-out refused", status_code=status)
 
 
 class CanadaPostAccountClient:

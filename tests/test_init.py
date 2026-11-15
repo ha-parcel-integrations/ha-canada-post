@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.canada_post import async_remove_entry
 from custom_components.canada_post.account.client import (
     CanadaPostAccountApiError,
     CanadaPostAccountReauthRequired,
@@ -343,3 +344,34 @@ async def test_rotated_tokens_do_not_trigger_another_poll(hass):
         )
         await hass.async_block_till_done()
         assert listing.await_count == calls + 1
+
+
+async def test_removing_an_account_ends_its_login(hass):
+    entry = _account_entry()
+    entry.add_to_hass(hass)
+    revoke = AsyncMock()
+    with patch("custom_components.canada_post.async_revoke", revoke):
+        await async_remove_entry(hass, entry)
+    assert revoke.await_args.args[1] == entry.data[CONF_REFRESH_TOKEN]
+
+
+async def test_a_failed_revocation_is_only_logged(hass, caplog):
+    entry = _account_entry()
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.canada_post.async_revoke",
+        AsyncMock(side_effect=CanadaPostAccountApiError("down")),
+    ):
+        await async_remove_entry(hass, entry)
+    assert entry.entry_id in caplog.text
+
+
+async def test_removing_the_tracking_hub_revokes_nothing(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="tracking", data={CONF_SOURCE: SOURCE_TRACKING}
+    )
+    entry.add_to_hass(hass)
+    revoke = AsyncMock()
+    with patch("custom_components.canada_post.async_revoke", revoke):
+        await async_remove_entry(hass, entry)
+    revoke.assert_not_awaited()

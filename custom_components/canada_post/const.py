@@ -70,6 +70,9 @@ TRACKING_URL = (
 ACCOUNT_TOKEN_URL = (
     "https://sso-osu.canadapost-postescanada.ca/mga/sps/oauth/oauth20/token"
 )
+ACCOUNT_REVOKE_URL = (
+    "https://sso-osu.canadapost-postescanada.ca/mga/sps/oauth/oauth20/revoke"
+)
 ACCOUNT_CLIENT_ID = "cpc-nativeapp-2020"
 ACCOUNT_SCOPE = "openid profile"
 ACCOUNT_GRAPHQL_URL = (

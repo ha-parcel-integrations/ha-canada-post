@@ -13,6 +13,7 @@ from custom_components.canada_post.account.client import (
     CanadaPostAccountInvalidCredentials,
     CanadaPostAccountReauthRequired,
     CanadaPostAccountTwoStepRequired,
+    async_revoke,
 )
 from custom_components.canada_post.const import (
     ACCOUNT_CLIENT_ID,
@@ -315,3 +316,34 @@ async def test_other_list_failures_are_api_errors(reply):
     with pytest.raises(CanadaPostAccountApiError) as err:
         await _client(FakeSession(reply)).async_list_items()
     assert not isinstance(err.value, CanadaPostAccountReauthRequired)
+
+
+def _revoke_session(status: int = 200, error: Exception | None = None) -> MagicMock:
+    response = MagicMock()
+    response.status = status
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=response, side_effect=error)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    session = MagicMock()
+    session.post = MagicMock(return_value=ctx)
+    return session
+
+
+async def test_revoke_posts_the_refresh_token_for_the_app_client():
+    session = _revoke_session()
+    await async_revoke(session, "r")
+    assert session.post.call_args.args[0].endswith("/oauth20/revoke")
+    assert session.post.call_args.kwargs["data"] == {
+        "token": "r",
+        "token_type_hint": "refresh_token",
+        "client_id": "cpc-nativeapp-2020",
+    }
+
+
+@pytest.mark.parametrize(
+    "session",
+    [_revoke_session(status=503), _revoke_session(error=aiohttp.ClientError())],
+)
+async def test_a_failed_revoke_is_an_api_error(session):
+    with pytest.raises(CanadaPostAccountApiError):
+        await async_revoke(session, "r")

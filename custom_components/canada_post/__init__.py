@@ -9,7 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .account.client import CanadaPostAccountClient
+from .account.client import (
+    CanadaPostAccountApiError,
+    CanadaPostAccountClient,
+    async_revoke,
+)
 from .account.coordinator import CanadaPostAccountCoordinator
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -113,3 +117,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) 
         # Only one tracking hub can exist, so its unload removes the services.
         async_unload_services(hass)
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -> None:
+    """End an account entry's login, so its refresh token in a backup is useless."""
+    if entry.data.get(CONF_SOURCE) != SOURCE_ACCOUNT:
+        return
+    refresh_token = entry.data.get(CONF_REFRESH_TOKEN)
+    if not refresh_token:
+        return
+    try:
+        await async_revoke(async_get_clientsession(hass), refresh_token)
+    except CanadaPostAccountApiError:
+        _LOGGER.warning(
+            "Could not end the Canada Post login of entry %s", entry.entry_id
+        )

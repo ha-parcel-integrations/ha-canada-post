@@ -14,6 +14,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
@@ -24,6 +25,7 @@ from .account.client import (
     CanadaPostAccountInvalidCredentials,
     CanadaPostAccountReauthRequired,
     CanadaPostAccountTwoStepRequired,
+    async_revoke,
 )
 from .const import (
     CONF_DELIVERED_FILTER_AMOUNT,
@@ -31,6 +33,7 @@ from .const import (
     CONF_INCLUDE_HISTORY,
     CONF_PARCELS,
     CONF_PASSWORD,
+    CONF_REFRESH_TOKEN,
     CONF_SOURCE,
     CONF_TRACKING_CODE,
     CONF_USERNAME,
@@ -143,6 +146,7 @@ class CanadaPostConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             else:
                 client = CanadaPostAccountClient(async_get_clientsession(self.hass))
+                tokens = None
                 try:
                     tokens = await client.async_login(username, password)
                     await client.async_list_items()
@@ -157,7 +161,11 @@ class CanadaPostConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
                 else:
                     await self.async_set_unique_id(f"account:{username}")
-                    self._abort_if_unique_id_configured()
+                    try:
+                        self._abort_if_unique_id_configured()
+                    except AbortFlow:
+                        await self._async_end_login(tokens)
+                        raise
                     return self.async_create_entry(
                         title=f"Canada Post ({username})",
                         data={
@@ -171,6 +179,7 @@ class CanadaPostConfigFlow(ConfigFlow, domain=DOMAIN):
                             CONF_INCLUDE_HISTORY: DEFAULT_INCLUDE_HISTORY,
                         },
                     )
+                await self._async_end_login(tokens)
         return self.async_show_form(
             step_id=SOURCE_ACCOUNT,
             data_schema=vol.Schema(
@@ -178,6 +187,16 @@ class CanadaPostConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def _async_end_login(self, tokens: dict[str, Any] | None) -> None:
+        """End a login the flow doesn't keep, so nobody is left holding it."""
+        refresh_token = (tokens or {}).get(CONF_REFRESH_TOKEN)
+        if not refresh_token:
+            return
+        try:
+            await async_revoke(async_get_clientsession(self.hass), refresh_token)
+        except CanadaPostAccountApiError:
+            _LOGGER.warning("A Canada Post login that wasn't kept couldn't be ended")
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Reauthenticate the fixed account; never silently change accounts."""
@@ -205,7 +224,11 @@ class CanadaPostConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(entry.unique_id)
                 self._abort_if_unique_id_mismatch()
-                return self.async_update_reload_and_abort(entry, data_updates=tokens)
+                old_refresh = entry.data.get(CONF_REFRESH_TOKEN)
+                result = self.async_update_reload_and_abort(entry, data_updates=tokens)
+                if old_refresh and old_refresh != tokens.get(CONF_REFRESH_TOKEN):
+                    await self._async_end_login({CONF_REFRESH_TOKEN: old_refresh})
+                return result
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_PASSWORD): str}),
