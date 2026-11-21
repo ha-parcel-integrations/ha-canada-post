@@ -7,7 +7,8 @@ of PINs from Canada Post, so it normalises through here too.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from collections.abc import Iterable
+from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
 import logging
 import re
 from typing import Any
@@ -223,6 +224,117 @@ def build_history(
     return entries[-max_events:]
 
 
+def _moment(value: Any, zone: tzinfo) -> tuple[datetime, bool, str] | None:
+    """Return ``(aware datetime, date_only, text)`` for a carrier time, or ``None``.
+
+    A naive time or a bare date gets ``zone``; an aware time keeps its offset
+    and, when it came in as a string, its own spelling.
+    """
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        moment = datetime.combine(value, time.min, tzinfo=zone)
+        return moment, True, moment.isoformat()
+    elif isinstance(value, str) and value:
+        try:
+            if len(value) == 10:
+                moment = datetime.combine(
+                    date.fromisoformat(value), time.min, tzinfo=zone
+                )
+                return moment, True, moment.isoformat()
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        if parsed.tzinfo:
+            return parsed, False, value
+    else:
+        return None
+    moment = parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)
+    return moment, False, moment.isoformat()
+
+
+def _end_of_day(moment: datetime, zone: tzinfo) -> datetime:
+    local = moment.astimezone(zone)
+    return datetime.combine(local.date(), time(23, 59, 59), tzinfo=zone)
+
+
+def planned_window(
+    start: Any, end: Any, *, zone: tzinfo
+) -> tuple[str | None, str | None]:
+    """Return ``(planned_from, planned_to)`` in the canonical window shape.
+
+    ``start`` and ``end`` are ISO strings, dates or datetimes, or ``None``; an
+    epoch number must be converted first (see ``to_iso_timestamp``). A window
+    keeps both ends. One moment with a time ends at ``23:59:59`` the same local
+    day; a date covers ``00:00:00`` to ``23:59:59``; two dates run from the
+    first day's start to the last day's end. Equal values are one moment,
+    reversed values are swapped, and ``planned_to`` is never set without
+    ``planned_from``. ``zone`` is the carrier's own zone: it dates naive times
+    and bare dates and decides which day a moment ends on, so a ``Z`` moment
+    still ends on the carrier's local day. When nothing is left of that day
+    after the moment, there is no ``planned_to``.
+    """
+    first = _moment(start, zone)
+    last = _moment(end, zone)
+    if first is None:
+        first, last = last, None
+    if first is None:
+        return None, None
+
+    def closing(moment: tuple[datetime, bool, str]) -> datetime:
+        return _end_of_day(moment[0], zone) if moment[1] else moment[0]
+
+    if last is not None and closing(last) < first[0]:
+        first, last = last, first
+    if last is not None and closing(last) == first[0]:
+        last = None
+
+    if last is None:
+        end_of_day = _end_of_day(first[0], zone)
+        return first[2], end_of_day.isoformat() if end_of_day > first[0] else None
+    return first[2], closing(last).isoformat() if last[1] else last[2]
+
+
+_NO_WINDOW_STATUSES = frozenset(
+    {
+        ParcelStatus.REGISTERED,
+        ParcelStatus.AT_PICKUP_POINT,
+        ParcelStatus.RETURNING,
+        ParcelStatus.DELIVERED,
+    }
+)
+
+
+def planned_for_status(
+    status: ParcelStatus, planned_from: str | None, planned_to: str | None
+) -> tuple[str | None, str | None]:
+    """Empty the delivery window once the parcel is at its destination or done."""
+    if status in _NO_WINDOW_STATUSES:
+        return None, None
+    return planned_from, planned_to
+
+
+def is_pickup(
+    route_flag: bool | None,
+    status: ParcelStatus,
+    event_statuses: Iterable[ParcelStatus | None] = (),
+) -> bool:
+    """Whether the delivery route ends at a pickup point.
+
+    The carrier's own route flag wins; otherwise the parcel having reached
+    ``AT_PICKUP_POINT`` at any point counts, so the value survives collection.
+    """
+    if route_flag:
+        return True
+    return status is ParcelStatus.AT_PICKUP_POINT or any(
+        event is ParcelStatus.AT_PICKUP_POINT for event in event_statuses
+    )
+
+
+def _zone() -> tzinfo:
+    return dt_util.get_default_time_zone()
+
+
 def _eta(detail: dict[str, Any]) -> tuple[str | None, str | None]:
     """Return ``(planned_from, planned_to)`` from the expected-delivery data."""
     expected = detail.get("expectedDlvryDateTime")
@@ -235,15 +347,14 @@ def _eta(detail: dict[str, Any]) -> tuple[str | None, str | None]:
         return None, None
     window = detail.get("expectedDlvryWindow")
     if not window or not isinstance(window, dict):
-        return _local_datetime(day).isoformat(), None
+        return planned_window(day, None, zone=_zone())
     _warn_eta_window_first_sighting(window)
     start = _parse_time(window.get("dlvryWindowStartTime"))
     end = _parse_time(window.get("dlvryWindowEndTime"))
-    if end is None and window.get("dlvryWindowEOD") is True:
-        end = time(23, 59)
-    return (
-        _local_datetime(day, start).isoformat(),
-        _local_datetime(day, end).isoformat() if end else None,
+    return planned_window(
+        datetime.combine(day, start) if start else day,
+        datetime.combine(day, end) if end else None,
+        zone=_zone(),
     )
 
 
@@ -260,11 +371,8 @@ def _delivered_at(
 def _pickup_point(newest_first: list[tuple[datetime | None, dict]]) -> str | None:
     for _, event in newest_first:
         name = event.get("retailNmEn")
-        if not name:
-            continue
-        address = event.get("locationAddr")
-        city = address.get("city") if isinstance(address, dict) else None
-        return f"{name}, {city}" if city else str(name)
+        if name and map_event_status(event) is ParcelStatus.AT_PICKUP_POINT:
+            return str(name)
     return None
 
 
@@ -302,17 +410,16 @@ def normalize_parcel(
     pairs = _dated_events(detail)
     newest_first = _newest_first(pairs)
     status = resolve_status(detail, [event for _, event in newest_first])
-    delivered = detail.get("delivered") is True or status is ParcelStatus.DELIVERED
-    pickup_point = (
-        _pickup_point(newest_first) if status is ParcelStatus.AT_PICKUP_POINT else None
+    delivered = status is ParcelStatus.DELIVERED
+    pickup = is_pickup(
+        None, status, (map_event_status(event) for _, event in newest_first)
     )
+    pickup_point = _pickup_point(newest_first) if pickup else None
     if status is ParcelStatus.AT_PICKUP_POINT:
         _warn_pickup_status_first_sighting(
             detail.get("status"), pickup_point is not None
         )
-    planned_from, planned_to = (
-        (None, None) if delivered or status is ParcelStatus.REGISTERED else _eta(detail)
-    )
+    planned_from, planned_to = planned_for_status(status, *_eta(detail))
 
     return {
         "carrier": "Canada Post",
@@ -325,7 +432,7 @@ def normalize_parcel(
         "delivered_at": _delivered_at(detail, newest_first) if delivered else None,
         "planned_from": planned_from,
         "planned_to": planned_to,
-        "pickup": status is ParcelStatus.AT_PICKUP_POINT,
+        "pickup": pickup,
         "pickup_point": pickup_point,
         "url": tracking_url(pin, lang),
         "weight": None,

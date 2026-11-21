@@ -35,11 +35,12 @@ you act in one of these areas:
   summary+diagnostic sensors. Add a new non-parcel sensor's unique_id to the set.
 - **Per-parcel sensors are removed by the summary sensor** via
   `entity_registry.async_remove` (self-removal races and leaves ghosts).
-- **`awaiting_pickup` is required here**: `ParcelStatus.AT_PICKUP_POINT` is
-  reachable. Say "pickup point", not
+- **`awaiting_pickup` and `en_route_to_pickup_point` are both built**
+  (`ParcelStatus.AT_PICKUP_POINT` is reachable). Say "pickup point", not
   "post office"/"counter", for the generic concept. `en_route_to_pickup_point`
-  is deliberately **not** built: `pickup` is only ever `status is
-  AT_PICKUP_POINT`, so that sensor would be permanently empty.
+  counts parcels with `pickup` set that are not yet at the point (and not
+  returning); the pickup flag is pending until a real parcel shows it before
+  arrival, so the sensor reads 0 until then.
 
 ## Carrier-specific notes
 
@@ -141,14 +142,18 @@ status, although the carrier groups it with in-transit.
 **`delivered` never comes from event text**, only from the delivered flag or
 the mapped status.
 
-**The ETA is usually a date.** A date-only `planned_from` sits at local
-midnight with `planned_to = None`, and the calendar shows it as an all-day
-event. `delivery_window` claims an ETA signal only (the suite's 2026-09-05
-ruling).
+**The ETA is usually a date.** A date-only ETA is local `00:00:00` to
+`23:59:59` of that day (Home Assistant's zone, as Canada spans several), and
+the calendar shows that window as an all-day event. A start time without an end
+(or with the end-of-day flag) runs to `23:59:59` the same day. The window is
+emptied at `registered` (the `HalfAccepted` date is a placeholder the carrier's
+own tracker hides), `at_pickup_point`, `returning` and `delivered`. `delivery_window` claims an ETA signal only.
 
-**`pickup_point` is populated only while the status is `at_pickup_point`**,
-as "office name, city" from the newest event naming an office. The office has
-no street line on this route.
+**`pickup` stays true once a parcel has reached a pickup point**, also after
+collection, because it is read from the events (`1701`/`0156`/`2407`).
+`pickup_point` is the office name from the newest such event; it is filled in
+every status while `pickup` is true. Whether a collected parcel's payload still
+carries that event has not been seen on a real parcel yet.
 
 **`sender` comes only from a shipper name**, never an address; `receiver` is
 always `None`. Weight and dimensions do not exist on this route. `raw` is the

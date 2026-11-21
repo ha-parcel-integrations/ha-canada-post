@@ -100,7 +100,8 @@ def test_eta_is_date_only_and_revised_date_wins():
     assert start.date().isoformat() == "2026-04-30"
     assert (start.hour, start.minute) == (0, 0)
     assert start.tzinfo is not None
-    assert parcel["planned_to"] is None
+    end = datetime.fromisoformat(parcel["planned_to"])
+    assert (end.date(), end.hour, end.minute, end.second) == (start.date(), 23, 59, 59)
 
 
 def test_eta_falls_back_to_dlvry_date():
@@ -133,12 +134,14 @@ def test_eta_window_combines_date_with_window_times_and_warns_once(caplog):
     assert "ha-canada-post/issues/1" in caplog.text
 
 
-def test_eta_window_eod_without_end_time_ends_at_2359():
+def test_eta_window_eod_without_end_time_ends_at_end_of_day():
     payload = detail(
         expectedDlvryWindow={"dlvryWindowStartTime": "0900", "dlvryWindowEOD": True}
     )
     parcel = normalize_parcel(payload, pin=ACTIVE_CODE)
-    assert datetime.fromisoformat(parcel["planned_to"]).strftime("%H:%M") == "23:59"
+    assert datetime.fromisoformat(parcel["planned_to"]).strftime("%H:%M:%S") == (
+        "23:59:59"
+    )
     assert datetime.fromisoformat(parcel["planned_from"]).strftime("%H:%M") == "09:00"
 
 
@@ -146,7 +149,9 @@ def test_eta_window_without_times_keeps_date_midnight_and_no_end():
     payload = detail(expectedDlvryWindow={"dlvryWindowStartTime": "bad"})
     parcel = normalize_parcel(payload, pin=ACTIVE_CODE)
     assert datetime.fromisoformat(parcel["planned_from"]).hour == 0
-    assert parcel["planned_to"] is None
+    assert datetime.fromisoformat(parcel["planned_to"]).strftime("%H:%M:%S") == (
+        "23:59:59"
+    )
 
 
 def test_registered_parcel_clears_placeholder_eta():
@@ -217,23 +222,23 @@ def test_pickup_point_from_newest_retail_event():
     parcel = normalize_parcel(pickup_detail(), pin=ACTIVE_CODE)
     assert parcel["status"] is ParcelStatus.AT_PICKUP_POINT
     assert parcel["pickup"] is True
-    assert parcel["pickup_point"] == "Example Office, Testville"
+    assert parcel["pickup_point"] == "Example Office"
 
 
-def test_pickup_point_without_city_or_retail_event():
+def test_pickup_point_without_retail_event():
     payload = pickup_detail()
-    payload["events"][0]["locationAddr"] = None
-    assert (
-        normalize_parcel(payload, pin=ACTIVE_CODE)["pickup_point"] == "Example Office"
-    )
     payload["events"] = [event("0174", "2026-04-29", "08:00:00", "x")]
     assert normalize_parcel(payload, pin=ACTIVE_CODE)["pickup_point"] is None
 
 
-def test_retail_event_alone_does_not_populate_pickup_point():
-    payload = detail(events=pickup_detail()["events"])
-    parcel = normalize_parcel(payload, pin=ACTIVE_CODE)
-    assert parcel["pickup"] is False and parcel["pickup_point"] is None
+def test_pickup_point_ignores_a_retail_event_that_is_not_the_arrival():
+    payload = pickup_detail()
+    payload["events"].insert(
+        0, event("0174", "2026-04-29", "11:00:00", "x", retail="Other Shop")
+    )
+    assert normalize_parcel(payload, pin=ACTIVE_CODE)["pickup_point"] == (
+        "Example Office"
+    )
 
 
 def test_url_follows_language():
@@ -438,7 +443,7 @@ def test_waiting_at_pickup_point_warns_once_with_keys_only(caplog):
     with caplog.at_level(logging.WARNING):
         for _ in range(2):
             parcel = normalize_parcel(payload, pin=ACTIVE_CODE)
-    assert parcel["pickup_point"] == "Secret PO, Testville"
+    assert parcel["pickup_point"] == "Secret PO"
     assert caplog.text.count("waiting at a pickup point") == 1
     assert "ha-canada-post/issues/2" in caplog.text
     assert "Secret PO" not in caplog.text and "Testville" not in caplog.text

@@ -116,6 +116,9 @@ def test_date_only_eta_is_an_all_day_event():
             _parcel(
                 "DAY",
                 planned_from=dt_util.start_of_local_day(date(2099, 1, 1)).isoformat(),
+                planned_to=dt_util.start_of_local_day(date(2099, 1, 1))
+                .replace(hour=23, minute=59, second=59)
+                .isoformat(),
             ),
             _parcel("TIMED", planned_from="2099-01-02T10:00:00Z"),
         ]
@@ -123,3 +126,30 @@ def test_date_only_eta_is_an_all_day_event():
     day = next(e for e in cal._events() if e.uid == "DAY")
     assert day.start == date(2099, 1, 1) and day.end == date(2099, 1, 2)
     assert cal.event.uid == "DAY"
+
+
+def test_a_moment_stretched_to_the_end_of_day_stays_timed():
+    start = dt_util.start_of_local_day(date(2099, 1, 1)).replace(hour=10)
+    cal = _cal(
+        [
+            _parcel(
+                "MOMENT",
+                planned_from=start.isoformat(),
+                planned_to=start.replace(hour=23, minute=59, second=59).isoformat(),
+            )
+        ]
+    )
+    event = cal._events()[0]
+    assert isinstance(event.start, datetime)
+
+
+def test_whole_days_window_is_an_all_day_event_over_those_days():
+    first = dt_util.start_of_local_day(date(2099, 1, 1))
+    last = dt_util.start_of_local_day(date(2099, 1, 3)).replace(
+        hour=23, minute=59, second=59
+    )
+    cal = _cal(
+        [_parcel("SPAN", planned_from=first.isoformat(), planned_to=last.isoformat())]
+    )
+    event = cal._events()[0]
+    assert event.start == date(2099, 1, 1) and event.end == date(2099, 1, 4)

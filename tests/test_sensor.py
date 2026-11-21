@@ -7,6 +7,7 @@ from custom_components.canada_post.const import ParcelStatus
 from custom_components.canada_post.sensor import (
     CanadaPostAwaitingPickupSensor,
     CanadaPostDeliveredParcelsSensor,
+    CanadaPostEnRouteToPickupPointSensor,
     CanadaPostIncomingParcelsSensor,
     CanadaPostLastUpdateSensor,
     CanadaPostNextDeliverySensor,
@@ -69,12 +70,12 @@ def test_parcel_sensor_missing_barcode():
 def test_next_delivery_picks_earliest():
     coordinator = _coordinator(
         [
-            _parcel("A", planned_from="2026-05-02T10:00:00Z"),
-            _parcel("B", planned_from="2026-05-01T10:00:00Z"),
+            _parcel("A", planned_from="2099-05-02T10:00:00Z"),
+            _parcel("B", planned_from="2099-05-01T10:00:00Z"),
         ]
     )
     sensor = CanadaPostNextDeliverySensor(coordinator, _entry())
-    assert sensor.native_value == datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
+    assert sensor.native_value == datetime(2099, 5, 1, 10, 0, tzinfo=UTC)
     assert sensor.extra_state_attributes["barcode"] == "B"
 
 
@@ -88,7 +89,7 @@ def test_next_delivery_skips_unparseable_moment():
     coordinator = _coordinator(
         [
             _parcel("A", planned_from="not-a-date"),
-            _parcel("B", planned_from="2026-05-01T10:00:00Z"),
+            _parcel("B", planned_from="2099-05-01T10:00:00Z"),
         ]
     )
     sensor = CanadaPostNextDeliverySensor(coordinator, _entry())
@@ -109,6 +110,27 @@ def test_awaiting_pickup_follows_status_alone():
         "REROUTED",
     ]
     assert awaiting.native_value == 2
+
+
+def test_en_route_counts_pickup_parcels_not_yet_at_the_point():
+    parcels = [
+        _parcel("GOING", pickup=True),
+        _parcel("READY", pickup=True, status=ParcelStatus.AT_PICKUP_POINT),
+        _parcel("BACK", pickup=True, status=ParcelStatus.RETURNING),
+        _parcel("HOME"),
+    ]
+    en_route = CanadaPostEnRouteToPickupPointSensor(_coordinator(parcels), _entry())
+    assert en_route.unique_id == "e1_en_route_to_pickup_point"
+    assert [p["barcode"] for p in en_route.extra_state_attributes["parcels"]] == [
+        "GOING"
+    ]
+    assert en_route.native_value == 1
+
+
+def test_en_route_zero_without_data():
+    coordinator = _coordinator([])
+    coordinator.data = None
+    assert CanadaPostEnRouteToPickupPointSensor(coordinator, _entry()).native_value == 0
 
 
 def test_awaiting_pickup_zero_without_data():
@@ -141,3 +163,14 @@ def test_last_update_sensor():
     coordinator.last_success_time = moment
     sensor = CanadaPostLastUpdateSensor(coordinator, _entry())
     assert sensor.native_value == moment
+
+
+def test_next_delivery_skips_a_window_that_has_ended():
+    coordinator = _coordinator(
+        [
+            _parcel("OLD", planned_from="2000-05-01T10:00:00Z"),
+            _parcel("NEW", planned_from="2099-05-01T10:00:00Z"),
+        ]
+    )
+    sensor = CanadaPostNextDeliverySensor(coordinator, _entry())
+    assert sensor.extra_state_attributes["barcode"] == "NEW"

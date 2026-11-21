@@ -36,7 +36,7 @@ A custom Home Assistant integration that tracks your [Canada Post](https://www.c
 ## Features
 
 - Two sources, chosen at setup: **Tracking codes** (no account; you add PINs, international tracking numbers or delivery notice card numbers) or **Account** (parcels saved in your Canada Post account are imported automatically)
-- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), Canada Post's own status text, the expected delivery date and a tracking deep-link, plus the pickup point while a parcel waits at one
+- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), Canada Post's own status text, the expected delivery date and a tracking deep-link, plus the pickup point for a parcel that goes through one
 - Summary sensors: incoming parcels, next delivery, awaiting pickup, recently delivered parcels
 - Read-only **Deliveries** calendar with the expected delivery dates (and times, when Canada Post gives a delivery window)
 - `canada_post.track_parcel` / `canada_post.untrack_parcel` services for the tracking-codes source, so a dashboard button can add a parcel
@@ -122,6 +122,7 @@ Standard HA removal applies: **Settings → Devices & Services → Canada Post �
 | `sensor.canada_post_incoming_parcels` | Number of active tracked parcels, full list under the `parcels` attribute |
 | `sensor.canada_post_parcel_<code>` | One per tracked parcel; state is the canonical status, attributes carry the full normalised parcel. An account parcel with a label in Canada Post is named after that label |
 | `sensor.canada_post_next_delivery` | Earliest expected delivery moment across all active parcels |
+| `sensor.canada_post_en_route_to_pickup_point` | Parcels heading for a pickup point that have not arrived yet |
 | `sensor.canada_post_awaiting_pickup` | Parcels ready to collect at a pickup point |
 | `sensor.canada_post_delivered_parcels` | Recently delivered parcels (see the retention option) |
 | `calendar.canada_post_deliveries` | Read-only calendar of expected deliveries, no extra API calls |

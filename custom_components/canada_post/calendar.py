@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.config_entries import ConfigEntry
@@ -21,6 +21,24 @@ from .tracking.parcels import display_name, parse_iso
 PARALLEL_UPDATES = 0
 
 _DEFAULT_EVENT_DURATION = timedelta(hours=1)
+_END_OF_DAY = time(23, 59, 59)
+
+
+def _whole_days(start: datetime, end: datetime) -> tuple[date, date] | None:
+    """Return the days a 00:00:00 to 23:59:59 window spans, else ``None``.
+
+    Checked in the window's own offset first, so a carrier's local or naive
+    wall clock counts, then in Home Assistant's zone for a window sent in UTC.
+    The end date is exclusive, as Home Assistant expects for all-day events.
+    """
+    for first, last in ((start, end), (dt_util.as_local(start), dt_util.as_local(end))):
+        if (
+            first.time().replace(tzinfo=None) == time.min
+            and last.time().replace(tzinfo=None, microsecond=0) == _END_OF_DAY
+            and last.date() >= first.date()
+        ):
+            return first.date(), last.date() + timedelta(days=1)
+    return None
 
 
 async def async_setup_entry(
@@ -63,14 +81,12 @@ class CanadaPostDeliveriesCalendar(
             if start is None:
                 continue
             end = parse_iso(parcel.get("planned_to"))
-            local = dt_util.as_local(start)
-            if end is None and local.time() == time.min:
-                # A date-only ETA is an all-day event, not an hour after midnight.
-                event_start, event_end = local.date(), local.date() + timedelta(days=1)
-            elif end is None or end <= start:
-                event_start, event_end = start, start + _DEFAULT_EVENT_DURATION
-            else:
-                event_start, event_end = start, end
+            if end is None or end <= start:
+                end = start + _DEFAULT_EVENT_DURATION
+            event_start: datetime | date = start
+            event_end: datetime | date = end
+            if days := _whole_days(start, end):
+                event_start, event_end = days
 
             barcode = parcel.get("barcode") or ""
             sender = parcel.get("sender")
