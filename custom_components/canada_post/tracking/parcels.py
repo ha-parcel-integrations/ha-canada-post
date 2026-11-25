@@ -310,7 +310,9 @@ def normalize_parcel(
         _warn_pickup_status_first_sighting(
             detail.get("status"), pickup_point is not None
         )
-    planned_from, planned_to = (None, None) if delivered else _eta(detail)
+    planned_from, planned_to = (
+        (None, None) if delivered or status is ParcelStatus.REGISTERED else _eta(detail)
+    )
 
     return {
         "carrier": "Canada Post",

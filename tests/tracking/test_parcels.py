@@ -149,6 +149,25 @@ def test_eta_window_without_times_keeps_date_midnight_and_no_end():
     assert parcel["planned_to"] is None
 
 
+def test_registered_parcel_clears_placeholder_eta():
+    payload = detail(
+        status="HalfAccepted",
+        expectedDlvryDateTime={"dlvryDate": "2026-04-29"},
+        events=[
+            event(
+                "3000",
+                "2026-04-28",
+                "18:28:12",
+                "Electronic information submitted by shipper",
+            )
+        ],
+    )
+    parcel = normalize_parcel(payload, pin=ACTIVE_CODE)
+    assert parcel["status"] is ParcelStatus.REGISTERED
+    assert parcel["raw_status"] == "HalfAccepted"
+    assert parcel["planned_from"] is None and parcel["planned_to"] is None
+
+
 def test_delivered_from_flag_clears_eta_and_uses_1466_event():
     parcel = normalize_parcel(delivered_detail(), pin=DELIVERED_CODE)
     assert parcel["delivered"] is True
