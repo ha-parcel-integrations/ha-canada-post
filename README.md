@@ -39,7 +39,7 @@ A custom Home Assistant integration that tracks your [Canada Post](https://www.c
 - Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), Canada Post's own status text, the expected delivery date and a tracking deep-link, plus the pickup point for a parcel that goes through one
 - Summary sensors: incoming parcels, next delivery, awaiting pickup, recently delivered parcels
 - Read-only **Deliveries** calendar with the expected delivery dates (and times, when Canada Post gives a delivery window)
-- `canada_post.track_parcel` / `canada_post.untrack_parcel` services for the tracking-codes source, so a dashboard button can add a parcel
+- `canada_post.track_parcel` / `canada_post.untrack_parcel` services for the tracking-codes source, so a dashboard button can add a parcel, and `canada_post.update_contents` to note what is in a parcel
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
 - Opt-in per-parcel status history
 - Manual refresh button and a diagnostic last-update sensor
@@ -166,8 +166,13 @@ Every payload is the full normalised parcel plus the hub's `device_id`. Events a
 
 | Service | Fields | Description |
 |---|---|---|
-| `canada_post.track_parcel` | `tracking_code` | Start tracking a parcel (PIN, international number or notice card number) |
+| `canada_post.track_parcel` | `tracking_code`, `contents` (optional) | Start tracking a parcel (PIN, international number or notice card number), optionally noting what is in it |
 | `canada_post.untrack_parcel` | `tracking_code` | Stop tracking a parcel |
+| `canada_post.update_contents` | `tracking_code`, `contents`, `config_entry_id` (optional) | Set what is in a parcel, tracked or not; an empty `contents` clears it. It goes to every account or hub that lists the code; name one with `config_entry_id` (needed for a code none lists yet). |
+
+`track_parcel` and `untrack_parcel` act on the tracking hub only. `update_contents` works with any set-up entry; it does no lookup, so give the parcel's PIN rather than a notice card number.
+
+The `contents` text you set titles the parcel's calendar event and shows on the next-delivery sensor.
 
 ## Examples
 

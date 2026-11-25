@@ -58,6 +58,7 @@ TO_REDACT = {
     "descEn",
     "descFr",
     # canonical fields we publish ourselves
+    "contents",
     "tracking_code",
     "barcode",
     "sender",

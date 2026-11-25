@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -21,10 +21,12 @@ from .const import (
     CONF_ID_TOKEN,
     CONF_REFRESH_TOKEN,
     CONF_SOURCE,
+    DOMAIN,
     PLATFORMS,
     SOURCE_ACCOUNT,
     SOURCE_TRACKING,
 )
+from .contents import ContentsStore
 from .services import async_setup_services, async_unload_services
 from .tracking.api import CanadaPostTrackingClient
 from .tracking.coordinator import CanadaPostCoordinator
@@ -74,6 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
     # cleanly (it logs a warning and half-sets-up the entry); doing the first
     # refresh here lets a transient failure fail the whole entry so HA retries
     # it with backoff.
+    await coordinator.contents_store.async_load()
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = CanadaPostData(
@@ -89,8 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -
     # scheduling.
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    if not is_account:
-        async_setup_services(hass)
+    async_setup_services(hass, hub=not is_account)
 
     return True
 
@@ -113,14 +115,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) 
     """Unload a Canada Post config entry."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
-    if entry.data[CONF_SOURCE] == SOURCE_TRACKING:
-        # Only one tracking hub can exist, so its unload removes the services.
-        async_unload_services(hass)
+    # Drop a service when the last entry that needs it goes, so unloading one
+    # entry never breaks the others. Only one tracking hub can exist.
+    others = [
+        other
+        for other in hass.config_entries.async_entries(DOMAIN)
+        if other.entry_id != entry.entry_id and other.state is ConfigEntryState.LOADED
+    ]
+    hub_left = any(other.data[CONF_SOURCE] == SOURCE_TRACKING for other in others)
+    async_unload_services(hass, hub_left=hub_left, entries_left=bool(others))
     return True
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: CanadaPostConfigEntry) -> None:
-    """End an account entry's login, so its refresh token in a backup is useless."""
+    """Delete the entry's contents and end an account's login."""
+    await ContentsStore(hass, entry.entry_id).async_remove()
     if entry.data.get(CONF_SOURCE) != SOURCE_ACCOUNT:
         return
     refresh_token = entry.data.get(CONF_REFRESH_TOKEN)

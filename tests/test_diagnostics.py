@@ -3,6 +3,8 @@
 from datetime import timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.canada_post.diagnostics import async_get_config_entry_diagnostics
 
 
@@ -113,3 +115,21 @@ async def test_diagnostics_reports_suspended_polling(hass):
         "update_interval_seconds": None,
         "suspended": True,
     }
+
+
+@pytest.mark.parametrize("source", ["tracking", "account"])
+async def test_diagnostics_redacts_the_contents_for_every_entry_type(hass, source):
+    entry = MagicMock()
+    entry.data = {"source": source}
+    entry.options = {}
+    entry.runtime_data.coordinator.current_tier_minutes = 45
+    entry.runtime_data.coordinator.update_interval = timedelta(minutes=45)
+    parcel = {"barcode": "123456789012", "contents": "Running shoes"}
+    entry.runtime_data.coordinator.data = [dict(parcel)]
+    entry.runtime_data.coordinator.delivered = [dict(parcel)]
+
+    result = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert result["incoming"][0]["contents"] == "**REDACTED**"
+    assert result["delivered"][0]["contents"] == "**REDACTED**"
+    assert "Running shoes" not in str(result)

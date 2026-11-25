@@ -426,6 +426,7 @@ def normalize_parcel(
         "barcode": pin,
         "sender": detail.get("custNm") or None,
         "receiver": None,
+        "contents": None,
         "status": status,
         "raw_status": detail.get("status"),
         "delivered": delivered,

@@ -15,7 +15,7 @@ from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -29,6 +29,7 @@ from ..const import (
     MID_INTERVAL_MINUTES,
     ParcelStatus,
 )
+from ..contents import ContentsStore, normalize_code
 from ..events import (
     fire_incoming_change_events,
     snapshot_delivery_times,
@@ -80,6 +81,10 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         )
         self._client = client
         self._tracking = tracking_client
+        self.contents_store = ContentsStore(hass, entry.entry_id)
+        # Every code this entry lists, delivered ones past the retention filter
+        # included: update_contents asks which entry a code belongs to.
+        self.known_codes: frozenset[str] = frozenset()
         self.delivered: list[dict] = []
         self._raw_cache: dict[str, dict] = {}
         self._delivered_pins: set[str] = set()
@@ -119,6 +124,21 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         if device is not None:
             self._cached_device_id = device.id
         return self._cached_device_id
+
+    def _apply_contents(self, parcel: dict) -> dict:
+        """Put the user's own contents text over the carrier's, when there is one."""
+        user_value = self.contents_store.get(parcel["barcode"])
+        if user_value is not None:
+            parcel["contents"] = user_value
+        return parcel
+
+    @callback
+    def async_reapply_contents(self) -> None:
+        """Show the stored contents on the parcels already held, without a poll."""
+        for parcel in (*(self.data or []), *self.delivered):
+            parcel["contents"] = None
+            self._apply_contents(parcel)
+        self.async_update_listeners()
 
     async def _pin_for(self, track_id: str) -> str | None:
         """Return the PIN for a list entry, resolving a notice card number."""
@@ -237,6 +257,7 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
                 )
             )
 
+        self.known_codes = frozenset(normalize_code(p["barcode"]) for p in parcels)
         active = [p for p in parcels if not p["delivered"]]
         delivered = [p for p in parcels if p["delivered"]]
         self._delivered_pins = {
@@ -273,12 +294,16 @@ class CanadaPostAccountCoordinator(DataUpdateCoordinator[list[dict]]):
         )
         return active
 
-    @staticmethod
     def _normalise(
-        raw: dict, pin: str, item: dict[str, Any], lang: str, include_history: bool
+        self,
+        raw: dict,
+        pin: str,
+        item: dict[str, Any],
+        lang: str,
+        include_history: bool,
     ) -> dict:
-        parcel = normalize_parcel(
-            raw, pin=pin, lang=lang, include_history=include_history
+        parcel = self._apply_contents(
+            normalize_parcel(raw, pin=pin, lang=lang, include_history=include_history)
         )
         parcel["raw"] = {
             **parcel["raw"],

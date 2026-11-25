@@ -90,8 +90,11 @@ class CanadaPostDeliveriesCalendar(
 
             barcode = parcel.get("barcode") or ""
             sender = parcel.get("sender")
+            # Contents say what is arriving; the account label and sender are
+            # the fallbacks when the parcel has none.
             summary = (
-                display_name(parcel)
+                parcel.get("contents")
+                or display_name(parcel)
                 or sender
                 or (f"Parcel {barcode}" if barcode else "Canada Post parcel")
             )

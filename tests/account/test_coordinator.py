@@ -32,6 +32,7 @@ from custom_components.canada_post.const import (
 )
 from custom_components.canada_post.tracking.api import CanadaPostApiError
 from tests.payloads import active_sample, delivered_detail
+from tests.test_contract import CANONICAL_KEYS
 
 PIN_A = "111111111111"
 PIN_B = "222222222222"
@@ -83,6 +84,16 @@ async def test_lists_then_fetches_detail_per_pin_through_tracking_client(hass):
     }
     assert parcel["pickup"] is False  # a FLEX source is a hint only
     assert coordinator.last_success_time is not None
+
+
+async def test_account_parcels_publish_the_canonical_keys_in_order(hass):
+    coordinator, _, _ = _make(hass, [_item(PIN_A), _item(DNC)])
+    coordinator._tracking.async_resolve_dnc.return_value = None
+    data = await coordinator._async_update_data()
+    assert len(data) == 2
+    for parcel in data:
+        assert list(parcel) == CANONICAL_KEYS
+        assert parcel["contents"] is None
 
 
 async def test_account_extras_do_not_mutate_the_cached_detail(hass):
